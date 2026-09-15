@@ -27,7 +27,7 @@ from tls.protocol import ProtocolError
 from tls.transport import DEFAULT_BAUD, GaugeTimeout, TlsGauge, find_port
 
 REPORTS = ("inventory", "status", "delivery")
-DEFAULT_API_URL = "http://100.82.56.28:3000/readings"  # Bun dev server on the Mac
+DEFAULT_API_URL = "https://fuelms-fuelapi-fbqlk8-0155fc-103-66-238-99.sslip.io/readings"  # Bun dev server on the Mac
 log = logging.getLogger("fuel-level")
 
 
