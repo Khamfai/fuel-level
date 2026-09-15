@@ -107,6 +107,22 @@ class StatusReportTest(unittest.TestCase):
         self.assertEqual([a.code for a in report.tanks[1].alarms], [5, 9])
         self.assertEqual(report.tanks[1].alarms[0].name, "Tank Low Product Alarm")
 
+    def test_parses_layout_without_timestamp(self):
+        """Some TLS-350 units send TTnn records straight after the tank field."""
+        report = parse_status_report(frame("i20500" + "0100" + "0200" + "0300"))
+        self.assertIsNone(report.timestamp)
+        self.assertEqual([t.tank for t in report.tanks], [1, 2, 3])
+        self.assertTrue(all(t.alarms == () for t in report.tanks))
+
+    def test_no_timestamp_layout_with_alarms(self):
+        report = parse_status_report(frame("i20500" + "0102" + "05" + "09" + "0200"))
+        self.assertEqual([a.code for a in report.tanks[0].alarms], [5, 9])
+        self.assertEqual(report.tanks[1].alarms, ())
+
+    def test_still_fails_on_garbage(self):
+        with self.assertRaises(ProtocolError):
+            parse_status_report(frame("i20500" + "01X"))
+
 
 REAL_20C_FRAME = (
     b"\x01i20C00260915155801000-001010800-0010108000A"

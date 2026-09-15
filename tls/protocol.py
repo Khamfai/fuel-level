@@ -279,10 +279,28 @@ def parse_inventory_report(frame: bytes, verify: bool = True) -> InventoryReport
 
 
 def parse_status_report(frame: bytes, verify: bool = True) -> StatusReport:
-    """Parse an i205 In-Tank Status Report."""
-    _, cur = _open_frame(frame, FUNCTION_STATUS, verify)
-    timestamp = cur.timestamp("timestamp")
+    """Parse an i205 In-Tank Status Report.
 
+    The manual shows a YYMMDDHHmm timestamp before the tank records, but some
+    TLS-350 units omit it (body is just TTnnAA... records). Try the documented
+    layout first and fall back to the timestamp-less one.
+    """
+    _, cur = _open_frame(frame, FUNCTION_STATUS, verify)
+    body = cur.take(cur.remaining(), "status body")
+
+    try:
+        if len(body) < TIMESTAMP_LEN:
+            raise ProtocolError("status body shorter than a timestamp")
+        timestamp = parse_timestamp(body[:TIMESTAMP_LEN])
+        return StatusReport(FUNCTION_STATUS, timestamp, _read_status_tanks(_Cursor(body[TIMESTAMP_LEN:])))
+    except ProtocolError as documented_layout_error:
+        try:
+            return StatusReport(FUNCTION_STATUS, None, _read_status_tanks(_Cursor(body)))
+        except ProtocolError:
+            raise documented_layout_error from None
+
+
+def _read_status_tanks(cur: _Cursor) -> tuple[TankStatus, ...]:
     tanks = []
     while cur.remaining():
         tank = cur.decimal(2, "tank number")
@@ -292,8 +310,7 @@ def parse_status_report(frame: bytes, verify: bool = True) -> StatusReport:
             for code in (cur.decimal(2, "alarm code") for _ in range(count))
         )
         tanks.append(TankStatus(tank, alarms))
-
-    return StatusReport(FUNCTION_STATUS, timestamp, tuple(tanks))
+    return tuple(tanks)
 
 
 def parse_delivery_report(frame: bytes, verify: bool = True) -> DeliveryReport:
