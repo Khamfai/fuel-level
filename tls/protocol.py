@@ -17,6 +17,7 @@ SOH = b"\x01"
 ETX = b"\x03"
 TERMINATOR = b"&&"
 ERROR_FUNCTION = "9999"
+PLACEHOLDER_ALARM = "00"
 
 FUNCTION_INVENTORY = "i201"
 FUNCTION_STATUS = "i205"
@@ -309,6 +310,10 @@ def _read_status_tanks(cur: _Cursor) -> tuple[TankStatus, ...]:
             Alarm(code, ALARM_NAMES.get(code, f"Unknown alarm {code}"))
             for code in (cur.decimal(2, "alarm code") for _ in range(count))
         )
+        if count == 0 and cur.peek(2) == PLACEHOLDER_ALARM:
+            # Real TLS-350 units send one dummy "00" alarm code for a tank with
+            # no alarms. 00 is never a tank number, so this cannot be the next record.
+            cur.take(2, "placeholder alarm")
         tanks.append(TankStatus(tank, alarms))
     return tuple(tanks)
 
