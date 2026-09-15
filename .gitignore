@@ -1,0 +1,14 @@
+# macOS
+.DS_Store
+
+# Python
+__pycache__/
+*.pyc
+
+# Backend
+backend/node_modules/
+backend/data/
+backend/.env
+
+# Pi deploy config is machine-specific
+deploy/*.env
