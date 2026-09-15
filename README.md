@@ -10,7 +10,8 @@ Reads tank data from a Veeder-Root TLS-350 gauge over RS-232 and pushes it to a 
 | `tls/protocol.py` | Frame building, checksum, parsers for 201 / 205 / 20C |
 | `tls/transport.py` | Serial I/O (`TlsGauge`), port auto-detection |
 | `tls/api.py` | `ApiClient` (POST JSON, Bearer auth) and `build_payload` |
-| `mock_server.py` | Local stand-in for the not-yet-built API |
+| `backend/` | Bun + SQLite dev API that receives the readings (see backend/README.md) |
+| `mock_server.py` | Zero-dependency stand-in that just prints payloads |
 | `tests/` | `python3 -m unittest discover -s tests` |
 
 ## Usage
@@ -18,7 +19,7 @@ Reads tank data from a Veeder-Root TLS-350 gauge over RS-232 and pushes it to a 
 ```bash
 pip install pyserial
 python3 main.py --dry-run                                   # print what would be sent
-python3 main.py --api-url http://127.0.0.1:8000/readings    # one shot
+python3 main.py                                             # one shot to the Mac dev server (100.82.56.28:3000)
 python3 main.py --interval 60 --reports inventory,status,delivery
 ```
 

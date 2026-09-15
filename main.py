@@ -2,8 +2,9 @@
 
 Examples:
     python3 main.py --dry-run                       # print JSON, no upload
-    python3 main.py --api-url http://host/readings  # one shot
+    python3 main.py                                 # one shot to the Mac dev server
     python3 main.py --interval 60                   # poll forever, every 60 s
+    python3 main.py --api-url http://other/readings # different server
 
 Environment variables (overridden by flags): TLS_PORT, TLS_BAUD, TLS_API_URL,
 TLS_API_KEY, TLS_SITE_ID.
@@ -26,6 +27,7 @@ from tls.protocol import ProtocolError
 from tls.transport import DEFAULT_BAUD, GaugeTimeout, TlsGauge, find_port
 
 REPORTS = ("inventory", "status", "delivery")
+DEFAULT_API_URL = "http://100.82.56.28:3000/readings"  # Bun dev server on the Mac
 log = logging.getLogger("fuel-level")
 
 
@@ -35,7 +37,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     p.add_argument("--baud", type=int, default=int(os.environ.get("TLS_BAUD", DEFAULT_BAUD)))
     p.add_argument("--tank", default="00", help="tank number, 00 = all tanks")
     p.add_argument("--reports", default="inventory,status", help=f"comma list of {', '.join(REPORTS)}")
-    p.add_argument("--api-url", default=os.environ.get("TLS_API_URL"), help="POST endpoint for readings")
+    p.add_argument("--api-url", default=os.environ.get("TLS_API_URL", DEFAULT_API_URL), help="POST endpoint for readings (default: %(default)s)")
     p.add_argument("--api-key", default=os.environ.get("TLS_API_KEY"), help="sent as Bearer token")
     p.add_argument("--site-id", default=os.environ.get("TLS_SITE_ID", "default"))
     p.add_argument("--interval", type=float, default=0, help="seconds between polls; 0 = run once")
@@ -48,8 +50,6 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     unknown = [r for r in args.reports if r not in REPORTS]
     if unknown:
         p.error(f"unknown report(s): {', '.join(unknown)}")
-    if not args.dry_run and not args.api_url:
-        p.error("--api-url (or TLS_API_URL) is required unless --dry-run is given")
     return args
 
 
@@ -60,7 +60,16 @@ def collect(gauge: TlsGauge, reports: list[str], tank: str, site_id: str) -> dic
         "status": gauge.status,
         "delivery": gauge.last_delivery,
     }
-    results = {name: readers[name](tank) for name in reports}
+    results: dict[str, Any] = {}
+    failures: list[Exception] = []
+    for name in reports:
+        try:
+            results[name] = readers[name](tank)
+        except (GaugeTimeout, ProtocolError) as exc:
+            log.error("%s report failed, skipping it: %s", name, exc)
+            failures.append(exc)
+    if not results:
+        raise ProtocolError(f"all {len(reports)} report(s) failed; last error: {failures[-1]}")
     return build_payload(site_id, **results)
 
 

@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import logging
 import time
+from typing import Callable, TypeVar
 
 import serial
 from serial.tools import list_ports
@@ -11,12 +13,16 @@ from tls import protocol
 from tls.protocol import (
     DeliveryReport,
     InventoryReport,
+    ProtocolError,
     StatusReport,
     build_command,
 )
 
 DEFAULT_BAUD = 9600
 DEFAULT_RESPONSE_TIMEOUT_S = 10.0
+log = logging.getLogger(__name__)
+T = TypeVar("T")
+
 USB_PORT_HINTS = ("usbserial", "usbmodem", "SLAB", "wchusb", "ttyUSB", "ttyACM", "COM")
 
 
@@ -80,24 +86,27 @@ class TlsGauge:
             if data:
                 chunks.append(data)
             if data.endswith(protocol.ETX):
-                return b"".join(chunks)
+                frame = b"".join(chunks)
+                log.debug("%s%s raw response (%d bytes): %r", function, tank, len(frame), frame)
+                return frame
 
         got = sum(len(c) for c in chunks)
         raise GaugeTimeout(
             f"no ETX within {self._response_timeout:.0f}s for {function}{tank} ({got} bytes received)"
         )
 
+    def _parsed(self, function: str, tank: str, parser: Callable[[bytes, bool], T]) -> T:
+        frame = self.query(function, tank)
+        try:
+            return parser(frame, self._verify)
+        except ProtocolError as exc:
+            raise ProtocolError(f"{exc} | raw={frame!r}") from exc
+
     def inventory(self, tank: str = "00") -> InventoryReport:
-        return protocol.parse_inventory_report(
-            self.query(protocol.FUNCTION_INVENTORY, tank), self._verify
-        )
+        return self._parsed(protocol.FUNCTION_INVENTORY, tank, protocol.parse_inventory_report)
 
     def status(self, tank: str = "00") -> StatusReport:
-        return protocol.parse_status_report(
-            self.query(protocol.FUNCTION_STATUS, tank), self._verify
-        )
+        return self._parsed(protocol.FUNCTION_STATUS, tank, protocol.parse_status_report)
 
     def last_delivery(self, tank: str = "00") -> DeliveryReport:
-        return protocol.parse_delivery_report(
-            self.query(protocol.FUNCTION_DELIVERY, tank), self._verify
-        )
+        return self._parsed(protocol.FUNCTION_DELIVERY, tank, protocol.parse_delivery_report)
