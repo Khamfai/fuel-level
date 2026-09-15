@@ -75,6 +75,24 @@ class InventoryReportTest(unittest.TestCase):
         self.assertAlmostEqual(t2.water, 1.5, places=3)
         self.assertAlmostEqual(t2.water_volume, 12.0, places=3)
 
+    def test_parses_real_frame_from_tls350(self):
+        """Captured 2026-09-15: tanks 1-2 unconfigured (all zero), tank 3 live."""
+        raw = (
+            b"\x01i20100260915201001000000700000000000000000000000000000000000000000000000000000000"
+            b"020000007000000000000000000000000000000000000000000000000000000000"
+            b"300000074620AB850000000045A54A6644BE70004401D99A41D0CCCD45A63E8F&&D604\x03"
+        )
+        report = parse_inventory_report(raw)
+
+        self.assertEqual(report.timestamp, datetime(2026, 9, 15, 20, 10))
+        self.assertEqual([t.tank for t in report.tanks], [1, 2, 3])
+        self.assertEqual(report.tanks[0].volume, 0.0)
+        t3 = report.tanks[2]
+        self.assertAlmostEqual(t3.volume, 10282.88, places=2)
+        self.assertAlmostEqual(t3.ullage, 5289.30, places=2)
+        self.assertAlmostEqual(t3.height, 1523.5, places=1)
+        self.assertAlmostEqual(t3.temperature, 26.1, places=1)
+
     def test_ignores_extra_fields_beyond_the_seven_documented(self):
         body = "i20101" + "0000000000" + "01" + "00000" + "09" + f(1.0) * 9
         report = parse_inventory_report(frame(body))
