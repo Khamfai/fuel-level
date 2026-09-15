@@ -20,6 +20,8 @@ from tls.protocol import (
 
 DEFAULT_BAUD = 9600
 DEFAULT_RESPONSE_TIMEOUT_S = 10.0
+COMMAND_GAP_S = 0.5  # the gauge drops commands sent right after its previous reply
+RETRIES_ON_TIMEOUT = 1
 log = logging.getLogger(__name__)
 T = TypeVar("T")
 
@@ -61,6 +63,7 @@ class TlsGauge:
         self._response_timeout = response_timeout
         self._verify = verify_checksum
         self._ser: serial.Serial | None = None
+        self._last_reply_at = 0.0
 
     def __enter__(self) -> "TlsGauge":
         self._ser = serial.Serial(self._port, self._baud, timeout=1)
@@ -72,10 +75,26 @@ class TlsGauge:
             self._ser = None
 
     def query(self, function: str, tank: str = "00") -> bytes:
-        """Send a command and return the raw frame from SOH through ETX."""
+        """Send a command and return the raw frame from SOH through ETX.
+
+        Retries once on timeout; the gauge occasionally ignores a command.
+        """
+        for attempt in range(RETRIES_ON_TIMEOUT + 1):
+            try:
+                return self._query_once(function, tank)
+            except GaugeTimeout as exc:
+                if attempt == RETRIES_ON_TIMEOUT:
+                    raise
+                log.warning("%s, retrying", exc)
+        raise AssertionError("unreachable")
+
+    def _query_once(self, function: str, tank: str) -> bytes:
         if self._ser is None:
             raise RuntimeError("use TlsGauge inside a 'with' block")
 
+        gap = COMMAND_GAP_S - (time.monotonic() - self._last_reply_at)
+        if gap > 0:
+            time.sleep(gap)
         self._ser.reset_input_buffer()
         self._ser.write(build_command(function, tank))
 
@@ -86,10 +105,12 @@ class TlsGauge:
             if data:
                 chunks.append(data)
             if data.endswith(protocol.ETX):
+                self._last_reply_at = time.monotonic()
                 frame = b"".join(chunks)
                 log.debug("%s%s raw response (%d bytes): %r", function, tank, len(frame), frame)
                 return frame
 
+        self._last_reply_at = time.monotonic()
         got = sum(len(c) for c in chunks)
         raise GaugeTimeout(
             f"no ETX within {self._response_timeout:.0f}s for {function}{tank} ({got} bytes received)"

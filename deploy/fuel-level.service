@@ -1,0 +1,19 @@
+[Unit]
+Description=Fuel level poller (Veeder-Root TLS -> REST API)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=backup
+WorkingDirectory=/home/backup/fuel-level
+# Optional overrides (TLS_PORT, TLS_API_URL, TLS_API_KEY, TLS_SITE_ID, POLL_INTERVAL)
+EnvironmentFile=-/etc/default/fuel-level
+Environment=POLL_INTERVAL=60
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/usr/bin/python3 /home/backup/fuel-level/main.py --interval ${POLL_INTERVAL}
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target

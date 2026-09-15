@@ -2,6 +2,8 @@
 
 Reads tank data from a Veeder-Root TLS-350 gauge over RS-232 and pushes it to a REST API.
 
+**Full documentation (Thai): [docs/](docs/README.md)** — overview, Mac server setup, Raspberry Pi setup, gauge protocol, API, troubleshooting.
+
 ## Layout
 
 | File | Purpose |
@@ -67,3 +69,15 @@ Flags fall back to env vars `TLS_PORT`, `TLS_BAUD`, `TLS_API_URL`, `TLS_API_KEY`
 
 Units are whatever the gauge is configured for (gallons/inches/°F or litres/mm/°C).
 `timestamp` is the gauge clock (no timezone); `collected_at` is the host clock in UTC.
+
+## Run at boot on the Raspberry Pi
+
+```bash
+cd ~/fuel-level
+sudo bash deploy/install.sh
+```
+
+This installs a systemd service (`deploy/fuel-level.service`) that starts the poller
+after the network is up, polls every 60 s, and restarts it if it crashes.
+Change settings in `/etc/default/fuel-level`, then `sudo systemctl restart fuel-level`.
+Logs: `journalctl -u fuel-level -f`.

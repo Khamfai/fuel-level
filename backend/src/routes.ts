@@ -47,7 +47,6 @@ export function createServer(opts: ServerOptions): Server<undefined> {
           } catch {
             return json({ error: "body is not valid JSON" }, 400);
           }
-          console.log(body);
           const result = validateReading(body);
           if (!result.ok) return json({ error: "invalid reading", errors: result.errors }, 422);
           return json(store.insert(result.value), 201);

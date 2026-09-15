@@ -184,6 +184,9 @@ class _Cursor:
     def remaining(self) -> int:
         return len(self._text) - self._pos
 
+    def peek(self, n: int) -> str:
+        return self._text[self._pos: self._pos + n]
+
     def take(self, n: int, what: str) -> str:
         if self.remaining() < n:
             raise ProtocolError(f"truncated response while reading {what}")
@@ -304,9 +307,19 @@ def parse_delivery_report(frame: bytes, verify: bool = True) -> DeliveryReport:
         product = cur.take(1, "product code")
         delivery_count = cur.decimal(2, "delivery count")
         deliveries = tuple(_read_delivery(cur, tank) for _ in range(delivery_count))
+        if delivery_count == 0 and _placeholder_record_follows(cur):
+            # Real TLS-350 units send one all-zero record (dates like "-001010800")
+            # for a tank with no delivery on file, even though dd == 00.
+            _read_delivery(cur, tank)
         tanks.append(TankDelivery(tank, product, deliveries))
 
     return DeliveryReport(FUNCTION_DELIVERY, timestamp, tuple(tanks))
+
+
+def _placeholder_record_follows(cur: _Cursor) -> bool:
+    """True when the next bytes cannot be a tank number, so must be a dummy record."""
+    ahead = cur.peek(2)
+    return len(ahead) == 2 and not ahead.isdigit()
 
 
 def _read_delivery(cur: _Cursor, tank: int) -> Delivery:

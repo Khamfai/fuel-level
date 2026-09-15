@@ -108,7 +108,28 @@ class StatusReportTest(unittest.TestCase):
         self.assertEqual(report.tanks[1].alarms[0].name, "Tank Low Product Alarm")
 
 
+REAL_20C_FRAME = (
+    b"\x01i20C00260915155801000-001010800-0010108000A"
+    + b"0" * 80 + b"02000-001010800-0010108000A" + b"0" * 80
+    + b"03000-001010800-0010108000A" + b"0" * 80 + b"&&BFA8\x03"
+)
+
+
 class DeliveryReportTest(unittest.TestCase):
+    def test_parses_real_frame_with_placeholder_records(self):
+        """Captured from a TLS-350: dd == 00 but a dummy record still follows."""
+        report = parse_delivery_report(REAL_20C_FRAME)
+
+        self.assertEqual(report.timestamp, datetime(2026, 9, 15, 15, 58))
+        self.assertEqual([t.tank for t in report.tanks], [1, 2, 3])
+        self.assertTrue(all(t.product_code == "0" for t in report.tanks))
+        self.assertTrue(all(t.deliveries == () for t in report.tanks))
+
+    def test_tank_with_zero_deliveries_and_no_placeholder(self):
+        body = "i20C00" + "2609151230" + "01" + "R" + "00" + "02" + "D" + "00"
+        report = parse_delivery_report(frame(body))
+        self.assertEqual([t.tank for t in report.tanks], [1, 2])
+
     def test_parses_one_delivery(self):
         floats = [1244.0, 1231.0, 0.0, 73.89, 3231.0, 3194.0, 0.0, 76.14, 24.4, 48.27]
         body = (
