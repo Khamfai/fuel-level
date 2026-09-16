@@ -56,7 +56,7 @@ sudo bash deploy/install.sh
 ```bash
 TLS_PORT=/dev/ttyUSB0
 TLS_BAUD=9600
-TLS_API_URL=https://fuelms-fuelapi-fbqlk8-0155fc-103-66-238-99.sslip.io            # base URL ไม่ต้องมี path
+TLS_API_URL=https://atg.moomou.com            # base URL ไม่ต้องมี path
 TLS_DEVICE_NAME=Station 1               # ใส่ทั้ง 3 ค่านี้เพื่อลงทะเบียน device ตอนเริ่ม
 TLS_LAT=13.7563
 TLS_LNG=100.5018

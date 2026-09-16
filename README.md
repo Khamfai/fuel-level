@@ -30,7 +30,7 @@ python3 main.py --interval 60 --reports inventory,status,delivery
 Flags fall back to env vars `TLS_PORT`, `TLS_BAUD`, `TLS_API_URL`, `TLS_API_KEY`, `TLS_SITE_ID`,
 `TLS_DEVICE_NAME`, `TLS_LAT`, `TLS_LNG`.
 
-`--api-url` is the API **base URL** (default `https://fuelms-fuelapi-fbqlk8-0155fc-103-66-238-99.sslip.io`);
+`--api-url` is the API **base URL** (default `https://atg.moomou.com`);
 the endpoints below are appended to it. An old value ending in `/readings` or `/v1/logs` still works,
 the path is stripped.
 

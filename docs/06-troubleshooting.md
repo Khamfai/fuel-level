@@ -64,13 +64,13 @@ gauge ตอบ 205 ไม่สม่ำเสมอเมื่อถูกถ
 gauge ตอบ `9999` แปลว่าไม่รู้จักคำสั่ง รุ่น/firmware อาจไม่รองรับ function นั้น
 ตัดออกจาก `--reports` ได้
 
-### `cannot reach https://fuelms-fuelapi-fbqlk8-0155fc-103-66-238-99.sslip.io/v1/logs`
+### `cannot reach https://atg.moomou.com/v1/logs`
 
 Mac ไม่ได้เปิด server หรือ Tailscale ไม่เชื่อม
 
 ```bash
 tailscale status                              # บน Pi ต้องเห็น Mac
-curl https://fuelms-fuelapi-fbqlk8-0155fc-103-66-238-99.sslip.io/health          # ต้องได้ {"success":true,"data":{"ok":true}}
+curl https://atg.moomou.com/health          # ต้องได้ {"success":true,"data":{"ok":true}}
 ```
 
 บน Mac ต้องรัน `bun run dev` ค้างไว้ และ IP จาก `tailscale ip -4` ต้องตรงกับ `TLS_API_URL`

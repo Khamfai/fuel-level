@@ -1,6 +1,6 @@
 # 05 REST API
 
-Base URL บน production: `https://fuelms-fuelapi-fbqlk8-0155fc-103-66-238-99.sslip.io`
+Base URL บน production: `https://atg.moomou.com`
 (ตอนพัฒนาบนเครื่องเดียวกันใช้ `http://localhost:3000`) เอกสารแบบ interactive อยู่ที่ `{base}/docs`
 และ OpenAPI ที่ `{base}/docs/json`
 
@@ -56,7 +56,7 @@ Base URL บน production: `https://fuelms-fuelapi-fbqlk8-0155fc-103-66-238-99.
 ลงทะเบียนด้วย curl:
 
 ```bash
-curl -X POST https://fuelms-fuelapi-fbqlk8-0155fc-103-66-238-99.sslip.io/v1/devices \
+curl -X POST https://atg.moomou.com/v1/devices \
   -H 'content-type: application/json' -H 'x-api-key: <key>' \
   -d '{"site_id":"station-1","name":"Station 1","lat":13.7563,"lng":100.5018}'
 ```
@@ -111,7 +111,7 @@ Pi เรียก endpoint นี้ทุกรอบ body คือ JSON ท�
 ทดสอบด้วย curl:
 
 ```bash
-curl -X POST https://fuelms-fuelapi-fbqlk8-0155fc-103-66-238-99.sslip.io/v1/logs \
+curl -X POST https://atg.moomou.com/v1/logs \
   -H 'content-type: application/json' -H 'x-api-key: <key>' \
   -d '{"site_id":"station-1","collected_at":"2026-09-15T00:00:00Z","inventory":{"function":"i201","timestamp":null,"tanks":[{"tank":1,"volume":500}]}}'
 ```
@@ -129,7 +129,7 @@ curl -X POST https://fuelms-fuelapi-fbqlk8-0155fc-103-66-238-99.sslip.io/v1/logs
 `metadata.total` คือจำนวนทั้งหมดที่ตรง `site_id` ไม่สนใจการแบ่งหน้า ค่า `page`/`limit` ที่ไม่ใช่จำนวนเต็มได้ `422`
 
 ```bash
-curl 'https://fuelms-fuelapi-fbqlk8-0155fc-103-66-238-99.sslip.io/v1/logs?site_id=station-1&limit=10' -H 'x-api-key: <key>'
+curl 'https://atg.moomou.com/v1/logs?site_id=station-1&limit=10' -H 'x-api-key: <key>'
 ```
 
 รูปแบบแต่ละแถวใน `data`:
@@ -149,8 +149,8 @@ curl 'https://fuelms-fuelapi-fbqlk8-0155fc-103-66-238-99.sslip.io/v1/logs?site_i
 ค่าล่าสุดของแต่ละสถานี (หนึ่งแถวต่อ `site_id`) เหมาะกับหน้า dashboard ไม่มี `metadata`
 
 ```bash
-curl https://fuelms-fuelapi-fbqlk8-0155fc-103-66-238-99.sslip.io/v1/logs/latest -H 'x-api-key: <key>'
-curl 'https://fuelms-fuelapi-fbqlk8-0155fc-103-66-238-99.sslip.io/v1/logs/latest?site_id=station-1' -H 'x-api-key: <key>'
+curl https://atg.moomou.com/v1/logs/latest -H 'x-api-key: <key>'
+curl 'https://atg.moomou.com/v1/logs/latest?site_id=station-1' -H 'x-api-key: <key>'
 ```
 
 ## GET /health

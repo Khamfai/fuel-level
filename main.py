@@ -33,7 +33,7 @@ from tls.protocol import ProtocolError
 from tls.transport import DEFAULT_BAUD, GaugeTimeout, TlsGauge, find_port
 
 REPORTS = ("inventory", "status", "delivery")
-DEFAULT_API_URL = "https://fuelms-fuelapi-fbqlk8-0155fc-103-66-238-99.sslip.io"  # fuel-api on Coolify
+DEFAULT_API_URL = "https://atg.moomou.com"  # fuel-api on Dokploy
 log = logging.getLogger("fuel-level")
 
 
@@ -43,25 +43,63 @@ def _env_float(name: str) -> float | None:
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
-    p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    p.add_argument("--port", default=os.environ.get("TLS_PORT"), help="serial device, e.g. /dev/cu.usbserial-1420")
-    p.add_argument("--baud", type=int, default=int(os.environ.get("TLS_BAUD", DEFAULT_BAUD)))
+    p = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+    )
+    p.add_argument(
+        "--port",
+        default=os.environ.get("TLS_PORT"),
+        help="serial device, e.g. /dev/cu.usbserial-1420",
+    )
+    p.add_argument(
+        "--baud", type=int, default=int(os.environ.get("TLS_BAUD", DEFAULT_BAUD))
+    )
     p.add_argument("--tank", default="00", help="tank number, 00 = all tanks")
-    p.add_argument("--reports", default="inventory,status", help=f"comma list of {', '.join(REPORTS)}")
+    p.add_argument(
+        "--reports",
+        default="inventory,status",
+        help=f"comma list of {', '.join(REPORTS)}",
+    )
     p.add_argument(
         "--api-url",
         default=os.environ.get("TLS_API_URL", DEFAULT_API_URL),
         help="fuel-api base URL; a legacy .../readings or .../v1/logs path is stripped (default: %(default)s)",
     )
-    p.add_argument("--api-key", default=os.environ.get("TLS_API_KEY"), help="sent as Bearer token")
+    p.add_argument(
+        "--api-key", default=os.environ.get("TLS_API_KEY"), help="sent as Bearer token"
+    )
     p.add_argument("--site-id", default=os.environ.get("TLS_SITE_ID", "default"))
-    p.add_argument("--device-name", default=os.environ.get("TLS_DEVICE_NAME"), help="with --lat/--lng: register the device at startup")
-    p.add_argument("--lat", type=float, default=_env_float("TLS_LAT"), help="device latitude, decimal degrees")
-    p.add_argument("--lng", type=float, default=_env_float("TLS_LNG"), help="device longitude, decimal degrees")
-    p.add_argument("--interval", type=float, default=0, help="seconds between polls; 0 = run once")
-    p.add_argument("--no-heartbeat", action="store_true", help="do not POST a heartbeat before each poll")
-    p.add_argument("--dry-run", action="store_true", help="print the payload instead of posting it")
-    p.add_argument("--no-verify-checksum", action="store_true", help="skip response checksum check")
+    p.add_argument(
+        "--device-name",
+        default=os.environ.get("TLS_DEVICE_NAME"),
+        help="with --lat/--lng: register the device at startup",
+    )
+    p.add_argument(
+        "--lat",
+        type=float,
+        default=_env_float("TLS_LAT"),
+        help="device latitude, decimal degrees",
+    )
+    p.add_argument(
+        "--lng",
+        type=float,
+        default=_env_float("TLS_LNG"),
+        help="device longitude, decimal degrees",
+    )
+    p.add_argument(
+        "--interval", type=float, default=0, help="seconds between polls; 0 = run once"
+    )
+    p.add_argument(
+        "--no-heartbeat",
+        action="store_true",
+        help="do not POST a heartbeat before each poll",
+    )
+    p.add_argument(
+        "--dry-run", action="store_true", help="print the payload instead of posting it"
+    )
+    p.add_argument(
+        "--no-verify-checksum", action="store_true", help="skip response checksum check"
+    )
     p.add_argument("-v", "--verbose", action="store_true")
     args = p.parse_args(argv)
 
@@ -70,13 +108,25 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     if unknown:
         p.error(f"unknown report(s): {', '.join(unknown)}")
 
-    given = [name for name, value in (("--device-name", args.device_name), ("--lat", args.lat), ("--lng", args.lng)) if value is not None]
+    given = [
+        name
+        for name, value in (
+            ("--device-name", args.device_name),
+            ("--lat", args.lat),
+            ("--lng", args.lng),
+        )
+        if value is not None
+    ]
     if given and len(given) != 3:
-        p.error("--device-name, --lat and --lng must be given together to register the device")
+        p.error(
+            "--device-name, --lat and --lng must be given together to register the device"
+        )
     return args
 
 
-def collect(gauge: TlsGauge, reports: list[str], tank: str, site_id: str) -> dict[str, Any]:
+def collect(
+    gauge: TlsGauge, reports: list[str], tank: str, site_id: str
+) -> dict[str, Any]:
     """Read the requested reports from the gauge and build the upload payload."""
     readers = {
         "inventory": gauge.inventory,
@@ -92,7 +142,9 @@ def collect(gauge: TlsGauge, reports: list[str], tank: str, site_id: str) -> dic
             log.error("%s report failed, skipping it: %s", name, exc)
             failures.append(exc)
     if not results:
-        raise ProtocolError(f"all {len(reports)} report(s) failed; last error: {failures[-1]}")
+        raise ProtocolError(
+            f"all {len(reports)} report(s) failed; last error: {failures[-1]}"
+        )
     return build_payload(site_id, **results)
 
 
@@ -105,24 +157,41 @@ def send_heartbeat(client: ApiClient) -> None:
         log.warning("heartbeat failed: %s", exc)
 
 
-def run_once(args: argparse.Namespace, client: ApiClient | None, open_gauge: Callable[..., Any] = TlsGauge) -> None:
+def run_once(
+    args: argparse.Namespace,
+    client: ApiClient | None,
+    open_gauge: Callable[..., Any] = TlsGauge,
+) -> None:
     """One poll cycle: heartbeat first (so a dead gauge still shows the device alive), then read and post."""
     if client is not None and not args.no_heartbeat:
         send_heartbeat(client)
 
-    with open_gauge(args.port, args.baud, verify_checksum=not args.no_verify_checksum) as gauge:
+    with open_gauge(
+        args.port, args.baud, verify_checksum=not args.no_verify_checksum
+    ) as gauge:
         payload = collect(gauge, args.reports, args.tank, args.site_id)
 
     if client is None:
         print(json.dumps(payload, indent=2))
         return
     status = client.post_log(payload)
-    log.info("posted %s report(s) to %s -> HTTP %s", len(args.reports), client.logs_url, status)
+    log.info(
+        "posted %s report(s) to %s -> HTTP %s",
+        len(args.reports),
+        client.logs_url,
+        status,
+    )
 
 
 def register_device(args: argparse.Namespace, client: ApiClient) -> None:
     outcome = client.register_device(args.device_name, args.lat, args.lng)
-    log.info("device %s for site %s (%s, %s)", outcome, args.site_id, args.device_name, f"{args.lat},{args.lng}")
+    log.info(
+        "device %s for site %s (%s, %s)",
+        outcome,
+        args.site_id,
+        args.device_name,
+        f"{args.lat},{args.lng}",
+    )
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -134,10 +203,23 @@ def main(argv: list[str] | None = None) -> int:
 
     port = args.port or find_port()
     args.port = port
-    client = None if args.dry_run else ApiClient(args.api_url, args.site_id, args.api_key)
-    log.info("gauge on %s @ %d baud, tank %s, reports %s", port, args.baud, args.tank, ",".join(args.reports))
+    client = (
+        None if args.dry_run else ApiClient(args.api_url, args.site_id, args.api_key)
+    )
+    log.info(
+        "gauge on %s @ %d baud, tank %s, reports %s",
+        port,
+        args.baud,
+        args.tank,
+        ",".join(args.reports),
+    )
     if client is not None:
-        log.info("api %s, site %s, heartbeat %s", client.base_url, args.site_id, "off" if args.no_heartbeat else "on")
+        log.info(
+            "api %s, site %s, heartbeat %s",
+            client.base_url,
+            args.site_id,
+            "off" if args.no_heartbeat else "on",
+        )
         if args.device_name is not None:
             try:
                 register_device(args, client)
