@@ -64,7 +64,7 @@ gauge ตอบ 205 ไม่สม่ำเสมอเมื่อถูกถ
 gauge ตอบ `9999` แปลว่าไม่รู้จักคำสั่ง รุ่น/firmware อาจไม่รองรับ function นั้น
 ตัดออกจาก `--reports` ได้
 
-### `cannot reach https://atg.moomou.com/v1/logs`
+### `cannot reach https://atg.moomou.com/api/v1/logs`
 
 Mac ไม่ได้เปิด server หรือ Tailscale ไม่เชื่อม
 

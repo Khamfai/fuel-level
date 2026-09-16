@@ -1,9 +1,9 @@
 """Talk to the fuel-api REST service (standard library only).
 
 Endpoints used, relative to the API base URL:
-    POST /v1/devices                       register this site's device (once)
-    POST /v1/devices/{site_id}/heartbeat   "still alive", sent every poll cycle
-    POST /v1/logs                          one gauge report
+    POST /api/v1/devices                       register this site's device (once)
+    POST /api/v1/devices/{site_id}/heartbeat   "still alive", sent every poll cycle
+    POST /api/v1/logs                          one gauge report
 
 Every response is an envelope: {"success": true, "data": ...} or
 {"success": false, "data": null, "error": {"message": "...", "details": [...]}}.
@@ -25,7 +25,8 @@ DEFAULT_TIMEOUT_S = 10.0
 FLOAT_DECIMALS = 3  # gauge floats are single precision; more digits is noise
 
 # Older configs pointed --api-url at the full endpoint; accept them and strip the path.
-LEGACY_ENDPOINT_SUFFIXES = ("/v1/logs", "/readings")
+# Longest first: "/api/v1/logs" must win over "/v1/logs" or an "/api" stub would be left behind.
+LEGACY_ENDPOINT_SUFFIXES = ("/api/v1/logs", "/v1/logs", "/readings")
 
 
 class ApiError(Exception):
@@ -58,11 +59,11 @@ class ApiClient:
 
     @property
     def logs_url(self) -> str:
-        return f"{self.base_url}/v1/logs"
+        return f"{self.base_url}/api/v1/logs"
 
     @property
     def devices_url(self) -> str:
-        return f"{self.base_url}/v1/devices"
+        return f"{self.base_url}/api/v1/devices"
 
     @property
     def heartbeat_url(self) -> str:

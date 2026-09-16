@@ -39,7 +39,7 @@ class FakeGauge:
 class FakeClient:
     """Records calls; `heartbeat_error` makes heartbeat() raise."""
 
-    logs_url = "http://fake/v1/logs"
+    logs_url = "http://fake/api/v1/logs"
 
     def __init__(self, heartbeat_error=None):
         self.calls = []

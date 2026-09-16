@@ -31,16 +31,16 @@ Flags fall back to env vars `TLS_PORT`, `TLS_BAUD`, `TLS_API_URL`, `TLS_API_KEY`
 `TLS_DEVICE_NAME`, `TLS_LAT`, `TLS_LNG`.
 
 `--api-url` is the API **base URL** (default `https://atg.moomou.com`);
-the endpoints below are appended to it. An old value ending in `/readings` or `/v1/logs` still works,
+the endpoints below are appended to it. An old value ending in `/readings`, `/v1/logs` or `/api/v1/logs` still works,
 the path is stripped.
 
 ## What one poll cycle does
 
-1. `POST {base}/v1/devices/{site_id}/heartbeat` — tells the server the device is alive, even if the
+1. `POST {base}/api/v1/devices/{site_id}/heartbeat` — tells the server the device is alive, even if the
    gauge turns out to be unreachable. A failed heartbeat is logged as a warning and never stops the poll.
    Disable with `--no-heartbeat`.
 2. Read the requested reports from the gauge.
-3. `POST {base}/v1/logs` with the JSON below. Accepted logs also count as presence on the server.
+3. `POST {base}/api/v1/logs` with the JSON below. Accepted logs also count as presence on the server.
 
 The server only accepts logs for a registered device. Register once with `--device-name/--lat/--lng`
 (or the matching env vars); running it again is harmless, the server answers 409 and the poller moves on.

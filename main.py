@@ -1,8 +1,8 @@
 """Poll a Veeder-Root TLS gauge over serial and push the readings to fuel-api.
 
-Each cycle sends a heartbeat (POST /v1/devices/{site}/heartbeat) so the server can
+Each cycle sends a heartbeat (POST /api/v1/devices/{site}/heartbeat) so the server can
 tell "device alive" from "gauge reporting", then reads the gauge and POSTs the
-report to /v1/logs. The site's device must exist on the server first; pass
+report to /api/v1/logs. The site's device must exist on the server first; pass
 --device-name/--lat/--lng once to register it.
 
 Examples:
@@ -63,7 +63,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     p.add_argument(
         "--api-url",
         default=os.environ.get("TLS_API_URL", DEFAULT_API_URL),
-        help="fuel-api base URL; a legacy .../readings or .../v1/logs path is stripped (default: %(default)s)",
+        help="fuel-api base URL; a trailing .../readings, .../v1/logs or .../api/v1/logs path is stripped (default: %(default)s)",
     )
     p.add_argument(
         "--api-key", default=os.environ.get("TLS_API_KEY"), help="sent as Bearer token"

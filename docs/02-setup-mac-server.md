@@ -53,10 +53,10 @@ API_KEY=secret bun run dev
 
 ```bash
 curl http://localhost:3000/health
-curl http://localhost:3000/v1/logs/latest | python3 -m json.tool
+curl http://localhost:3000/api/v1/logs/latest | python3 -m json.tool
 ```
 
-log ของ server เป็น JSON หนึ่งบรรทัดต่อ request เช่น `{"method":"POST","path":"/v1/logs","status":201,"clientId":"station-1","durationMs":1.7,"msg":"http.request"}`
+log ของ server เป็น JSON หนึ่งบรรทัดต่อ request เช่น `{"method":"POST","path":"/api/v1/logs","status":201,"clientId":"station-1","durationMs":1.7,"msg":"http.request"}`
 
 ## คำสั่งอื่น
 

@@ -4,9 +4,9 @@
     python3 main.py --api-url http://127.0.0.1:8000
 
 Answers with the same envelope shapes as the real API:
-    POST /v1/devices                     -> 201 {"success": true, "data": {...}}
-    POST /v1/devices/<site>/heartbeat    -> 200 {"success": true, "data": {"online": true}}
-    POST /v1/logs                        -> 201 {"success": true, "data": {"id": n}}
+    POST /api/v1/devices                     -> 201 {"success": true, "data": {...}}
+    POST /api/v1/devices/<site>/heartbeat    -> 200 {"success": true, "data": {"online": true}}
+    POST /api/v1/logs                        -> 201 {"success": true, "data": {"id": n}}
 """
 
 import json
@@ -29,13 +29,13 @@ class Handler(BaseHTTPRequestHandler):
             except json.JSONDecodeError:
                 print("non-JSON body:", body[:200], flush=True)
 
-        if self.path == "/v1/logs":
+        if self.path == "/api/v1/logs":
             Handler.next_id += 1
             self._reply(201, {"success": True, "data": {"id": Handler.next_id - 1}})
-        elif self.path.startswith("/v1/devices/") and self.path.endswith("/heartbeat"):
-            site = self.path[len("/v1/devices/") : -len("/heartbeat")]
+        elif self.path.startswith("/api/v1/devices/") and self.path.endswith("/heartbeat"):
+            site = self.path[len("/api/v1/devices/") : -len("/heartbeat")]
             self._reply(200, {"success": True, "data": {"site_id": site, "online": True}})
-        elif self.path == "/v1/devices":
+        elif self.path == "/api/v1/devices":
             self._reply(201, {"success": True, "data": json.loads(body or b"{}")})
         else:
             self._reply(404, {"success": False, "data": None, "error": {"message": f"no route for POST {self.path}"}})

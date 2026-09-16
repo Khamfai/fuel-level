@@ -20,9 +20,9 @@ Base URL บน production: `https://atg.moomou.com`
 
 ## ลำดับที่ Pi เรียก
 
-1. ตอนเริ่ม (ถ้าตั้ง `TLS_DEVICE_NAME`/`TLS_LAT`/`TLS_LNG`): `POST /v1/devices` ลงทะเบียน device ของ site
-2. ทุกรอบ: `POST /v1/devices/{site_id}/heartbeat` แล้วค่อยอ่าน gauge
-3. ทุกรอบ: `POST /v1/logs` ส่งรายงาน
+1. ตอนเริ่ม (ถ้าตั้ง `TLS_DEVICE_NAME`/`TLS_LAT`/`TLS_LNG`): `POST /api/v1/devices` ลงทะเบียน device ของ site
+2. ทุกรอบ: `POST /api/v1/devices/{site_id}/heartbeat` แล้วค่อยอ่าน gauge
+3. ทุกรอบ: `POST /api/v1/logs` ส่งรายงาน
 
 ## Devices
 
@@ -30,12 +30,12 @@ Base URL บน production: `https://atg.moomou.com`
 
 | Route | ความหมาย |
 |---|---|
-| `POST /v1/devices` | body `{"site_id","name","lat","lng"}` → `201` device, `409` ถ้า site มีอยู่แล้ว, `422` ถ้าข้อมูลผิด (เช่น lat > 90) |
-| `GET /v1/devices?page=&limit=&status=` | รายการเรียงตาม `site_id` กรอง `status=online` หรือ `offline` ได้ |
-| `GET /v1/devices/{site_id}` | device เดียว `404` ถ้าไม่มี |
-| `PUT /v1/devices/{site_id}` | แก้ `name`, `lat`, `lng` บางฟิลด์ |
-| `DELETE /v1/devices/{site_id}` | ลบ `409` ถ้ายังมี log อยู่ |
-| `POST /v1/devices/{site_id}/heartbeat` | บอกว่า device ยังทำงาน ไม่ต้องมี body ตอบ device พร้อม `online: true` |
+| `POST /api/v1/devices` | body `{"site_id","name","lat","lng"}` → `201` device, `409` ถ้า site มีอยู่แล้ว, `422` ถ้าข้อมูลผิด (เช่น lat > 90) |
+| `GET /api/v1/devices?page=&limit=&status=` | รายการเรียงตาม `site_id` กรอง `status=online` หรือ `offline` ได้ |
+| `GET /api/v1/devices/{site_id}` | device เดียว `404` ถ้าไม่มี |
+| `PUT /api/v1/devices/{site_id}` | แก้ `name`, `lat`, `lng` บางฟิลด์ |
+| `DELETE /api/v1/devices/{site_id}` | ลบ `409` ถ้ายังมี log อยู่ |
+| `POST /api/v1/devices/{site_id}/heartbeat` | บอกว่า device ยังทำงาน ไม่ต้องมี body ตอบ device พร้อม `online: true` |
 
 ฟิลด์ของ device:
 
@@ -56,12 +56,12 @@ Base URL บน production: `https://atg.moomou.com`
 ลงทะเบียนด้วย curl:
 
 ```bash
-curl -X POST https://atg.moomou.com/v1/devices \
+curl -X POST https://atg.moomou.com/api/v1/devices \
   -H 'content-type: application/json' -H 'x-api-key: <key>' \
   -d '{"site_id":"station-1","name":"Station 1","lat":13.7563,"lng":100.5018}'
 ```
 
-## POST /v1/logs
+## POST /api/v1/logs
 
 Pi เรียก endpoint นี้ทุกรอบ body คือ JSON ที่ `main.py` สร้าง
 
@@ -111,12 +111,12 @@ Pi เรียก endpoint นี้ทุกรอบ body คือ JSON ท�
 ทดสอบด้วย curl:
 
 ```bash
-curl -X POST https://atg.moomou.com/v1/logs \
+curl -X POST https://atg.moomou.com/api/v1/logs \
   -H 'content-type: application/json' -H 'x-api-key: <key>' \
   -d '{"site_id":"station-1","collected_at":"2026-09-15T00:00:00Z","inventory":{"function":"i201","timestamp":null,"tanks":[{"tank":1,"volume":500}]}}'
 ```
 
-## GET /v1/logs
+## GET /api/v1/logs
 
 รายการล่าสุดก่อน แบ่งหน้า
 
@@ -129,7 +129,7 @@ curl -X POST https://atg.moomou.com/v1/logs \
 `metadata.total` คือจำนวนทั้งหมดที่ตรง `site_id` ไม่สนใจการแบ่งหน้า ค่า `page`/`limit` ที่ไม่ใช่จำนวนเต็มได้ `422`
 
 ```bash
-curl 'https://atg.moomou.com/v1/logs?site_id=station-1&limit=10' -H 'x-api-key: <key>'
+curl 'https://atg.moomou.com/api/v1/logs?site_id=station-1&limit=10' -H 'x-api-key: <key>'
 ```
 
 รูปแบบแต่ละแถวใน `data`:
@@ -144,13 +144,13 @@ curl 'https://atg.moomou.com/v1/logs?site_id=station-1&limit=10' -H 'x-api-key: 
 }
 ```
 
-## GET /v1/logs/latest
+## GET /api/v1/logs/latest
 
 ค่าล่าสุดของแต่ละสถานี (หนึ่งแถวต่อ `site_id`) เหมาะกับหน้า dashboard ไม่มี `metadata`
 
 ```bash
-curl https://atg.moomou.com/v1/logs/latest -H 'x-api-key: <key>'
-curl 'https://atg.moomou.com/v1/logs/latest?site_id=station-1' -H 'x-api-key: <key>'
+curl https://atg.moomou.com/api/v1/logs/latest -H 'x-api-key: <key>'
+curl 'https://atg.moomou.com/api/v1/logs/latest?site_id=station-1' -H 'x-api-key: <key>'
 ```
 
 ## GET /health
