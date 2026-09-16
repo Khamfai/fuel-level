@@ -8,7 +8,7 @@
 │ Veeder-Root  │ ───────► │ main.py (Python)    │ ────────────► │ backend/ (Bun)       │
 │ TLS-350      │ ◄─────── │ systemd: fuel-level │  JSON ทุก 60s  │ SQLite: data/fuel.db │
 └──────────────┘          └─────────────────────┘               └──────────────────────┘
-                           /dev/ttyUSB0                          http://100.82.56.28:3000
+                           /dev/ttyUSB0                          https://fuelms-fuelapi-fbqlk8-0155fc-103-66-238-99.sslip.io
 ```
 
 1. **Gauge (TLS-350)** ตอบคำสั่งผ่าน serial เป็นข้อความ ASCII ตามโปรโตคอลของ Veeder-Root
@@ -17,7 +17,7 @@
 3. **Mac** รัน Bun server รับ JSON ตรวจสอบรูปแบบ แล้วเก็บลง SQLite
    มี GET endpoint ให้ดึงข้อมูลไปแสดงผล
 
-Pi กับ Mac คุยกันผ่าน Tailscale (IP `100.82.56.28` คือ Mac)
+API ตัวจริงรันบน Coolify ที่ `https://fuelms-fuelapi-fbqlk8-0155fc-103-66-238-99.sslip.io` (ระหว่างพัฒนาอาจชี้ไป Mac ผ่าน Tailscale แทน) ทุกรอบ Pi ส่ง heartbeat ก่อนอ่าน gauge เพื่อให้ server รู้ว่า device ยังทำงานแม้ gauge จะไม่ตอบ
 
 ## โครงสร้างไฟล์
 

@@ -53,10 +53,10 @@ API_KEY=secret bun run dev
 
 ```bash
 curl http://localhost:3000/health
-curl http://localhost:3000/readings/latest | python3 -m json.tool
+curl http://localhost:3000/v1/logs/latest | python3 -m json.tool
 ```
 
-log ของ server จะพิมพ์ทุก request เช่น `POST /readings -> 201 (1.7ms)`
+log ของ server เป็น JSON หนึ่งบรรทัดต่อ request เช่น `{"method":"POST","path":"/v1/logs","status":201,"clientId":"station-1","durationMs":1.7,"msg":"http.request"}`
 
 ## คำสั่งอื่น
 
@@ -68,7 +68,7 @@ bun start             # รันแบบไม่ hot reload
 
 ## เช็ค Tailscale
 
-Pi เรียก Mac ผ่าน IP Tailscale `100.82.56.28` ดู IP ปัจจุบันด้วย:
+ถ้าจะให้ Pi เรียก Mac (แทน Coolify) ใช้ IP Tailscale ของ Mac เป็น `TLS_API_URL` เช่น `http://100.82.56.28:3000` ดู IP ปัจจุบันด้วย:
 
 ```bash
 tailscale ip -4
