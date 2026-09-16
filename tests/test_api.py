@@ -128,7 +128,15 @@ class BuildPayloadTest(unittest.TestCase):
 
         self.assertEqual(payload["site_id"], "site-1")
         self.assertEqual(payload["inventory"]["timestamp"], "2026-09-15T12:30:00")
-        self.assertEqual(payload["inventory"]["tanks"][0]["tank"], 1)
+        tank = payload["inventory"]["tanks"][0]
+        self.assertEqual(tank["tank"], 1)
+        # Wire keys name the liquid and the quantity; the dashboard reads exactly these.
+        self.assertEqual(tank["fuel_volume"], 1000.0)
+        self.assertEqual(tank["fuel_height"], 48.25)
+        self.assertEqual(tank["water_height"], 0.0)
+        self.assertEqual(tank["water_volume"], 0.0)
+        for old in ("volume", "height", "water"):
+            self.assertNotIn(old, tank)
         self.assertNotIn("status", payload)
         json.dumps(payload)  # must be JSON serialisable
 

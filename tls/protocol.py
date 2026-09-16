@@ -76,12 +76,19 @@ class ChecksumError(ProtocolError):
 
 @dataclass(frozen=True)
 class TankInventory:
+    """One tank from an inventory report. Field names are the JSON keys the API and dashboard read.
+
+    Volumes are in the gauge's volume unit (litres as configured here); heights are mm.
+    Fields follow the gauge's own order: gross volume, TC volume, ullage, product height,
+    water height, temperature, water volume.
+    """
+
     tank: int
-    volume: float
+    fuel_volume: float
     tc_volume: float
     ullage: float
-    height: float
-    water: float
+    fuel_height: float
+    water_height: float
     temperature: float
     water_volume: float
 

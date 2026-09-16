@@ -63,8 +63,8 @@ Sections are present only for the reports requested.
     "function": "i201",
     "timestamp": "2026-09-15T12:30:00",
     "tanks": [
-      {"tank": 1, "volume": 1000.0, "tc_volume": 0.0, "ullage": 4000.0,
-       "height": 48.25, "water": 0.0, "temperature": 76.1, "water_volume": 0.0}
+      {"tank": 1, "fuel_volume": 1000.0, "tc_volume": 0.0, "ullage": 4000.0,
+       "fuel_height": 48.25, "water_height": 0.0, "temperature": 76.1, "water_volume": 0.0}
     ]
   },
   "status": {

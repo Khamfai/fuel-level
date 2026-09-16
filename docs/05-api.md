@@ -89,8 +89,8 @@ Pi เรียก endpoint นี้ทุกรอบ body คือ JSON ท�
     "function": "i201",
     "timestamp": "2026-09-15T12:30:00",
     "tanks": [
-      {"tank": 1, "volume": 1000.0, "tc_volume": 0.0, "ullage": 4000.0,
-       "height": 48.25, "water": 0.0, "temperature": 76.1, "water_volume": 0.0}
+      {"tank": 1, "fuel_volume": 1000.0, "tc_volume": 0.0, "ullage": 4000.0,
+       "fuel_height": 48.25, "water_height": 0.0, "temperature": 76.1, "water_volume": 0.0}
     ]
   },
   "status": {
@@ -113,7 +113,7 @@ Pi เรียก endpoint นี้ทุกรอบ body คือ JSON ท�
 ```bash
 curl -X POST https://atg.moomou.com/api/v1/logs \
   -H 'content-type: application/json' -H 'x-api-key: <key>' \
-  -d '{"site_id":"station-1","collected_at":"2026-09-15T00:00:00Z","inventory":{"function":"i201","timestamp":null,"tanks":[{"tank":1,"volume":500}]}}'
+  -d '{"site_id":"station-1","collected_at":"2026-09-15T00:00:00Z","inventory":{"function":"i201","timestamp":null,"tanks":[{"tank":1,"fuel_volume":500}]}}'
 ```
 
 ## GET /api/v1/logs

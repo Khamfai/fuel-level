@@ -67,12 +67,12 @@ class InventoryReportTest(unittest.TestCase):
         self.assertEqual(len(report.tanks), 2)
         t1, t2 = report.tanks
         self.assertEqual(t1.tank, 1)
-        self.assertAlmostEqual(t1.volume, 1000.0, places=3)
+        self.assertAlmostEqual(t1.fuel_volume, 1000.0, places=3)
         self.assertAlmostEqual(t1.ullage, 4000.0, places=3)
-        self.assertAlmostEqual(t1.height, 48.25, places=3)
+        self.assertAlmostEqual(t1.fuel_height, 48.25, places=3)
         self.assertAlmostEqual(t1.temperature, 76.1, places=3)
         self.assertEqual(t2.tank, 2)
-        self.assertAlmostEqual(t2.water, 1.5, places=3)
+        self.assertAlmostEqual(t2.water_height, 1.5, places=3)
         self.assertAlmostEqual(t2.water_volume, 12.0, places=3)
 
     def test_parses_real_frame_from_tls350(self):
@@ -86,11 +86,11 @@ class InventoryReportTest(unittest.TestCase):
 
         self.assertEqual(report.timestamp, datetime(2026, 9, 15, 20, 10))
         self.assertEqual([t.tank for t in report.tanks], [1, 2, 3])
-        self.assertEqual(report.tanks[0].volume, 0.0)
+        self.assertEqual(report.tanks[0].fuel_volume, 0.0)
         t3 = report.tanks[2]
-        self.assertAlmostEqual(t3.volume, 10282.88, places=2)
+        self.assertAlmostEqual(t3.fuel_volume, 10282.88, places=2)
         self.assertAlmostEqual(t3.ullage, 5289.30, places=2)
-        self.assertAlmostEqual(t3.height, 1523.5, places=1)
+        self.assertAlmostEqual(t3.fuel_height, 1523.5, places=1)
         self.assertAlmostEqual(t3.temperature, 26.1, places=1)
 
     def test_ignores_extra_fields_beyond_the_seven_documented(self):
