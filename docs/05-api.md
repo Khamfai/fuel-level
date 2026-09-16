@@ -61,6 +61,19 @@ curl -X POST https://atg.moomou.com/api/v1/devices \
   -d '{"site_id":"station-1","name":"Station 1","lat":13.7563,"lng":100.5018}'
 ```
 
+## Tank alarm thresholds (ตั้งจากหน้าเว็บ ไม่เกี่ยวกับ Pi)
+
+ผู้ดูแลตั้งเกณฑ์เตือนต่อถังได้ที่ `/admin#alarms/<site_id>` หรือผ่าน API; server เป็นคนตัดสินแล้วส่งผลกลับเป็น `alerts` ในทุก log
+
+| Route | ความหมาย |
+|---|---|
+| `GET /api/v1/devices/{site_id}/tanks` | `data: { defaults, tanks: [...] }` ถังที่ตั้งค่าไว้ของ site และค่าเริ่มต้นที่ถังอื่นใช้ |
+| `PUT /api/v1/devices/{site_id}/tanks/{tank}` | สร้าง/แก้แถวของถัง: `label`, `capacity_volume` (L), `low_fuel_percent`, `low_fuel_volume` (L), `high_water_height` (mm), `high_water_percent`, `high_temperature` (°C) ทุกฟิลด์ optional ส่ง `null` เพื่อปิดเกณฑ์ `404` ถ้าไม่มี device |
+| `DELETE /api/v1/devices/{site_id}/tanks/{tank}` | ลบแถว กลับไปใช้ค่าเริ่มต้น (`TANK_LOW_FUEL_PERCENT` 20, `TANK_HIGH_WATER_PERCENT` 2 ของ server) |
+
+ถังที่มีแถวของตัวเองจะถูกตัดสินจากแถวนั้นเท่านั้น ถังที่ไม่มีแถวใช้ค่าเริ่มต้นสองข้อ (% น้ำมันต่ำ, % น้ำสูง)
+เกณฑ์ % ต้องมี `ullage` จาก gauge หรือ `capacity_volume` ในแถว alarm ของ gauge เอง (`status.tanks[].alarms`) เป็นคนละอย่างและยังแสดงแยกกัน
+
 ## POST /api/v1/logs
 
 Pi เรียก endpoint นี้ทุกรอบ body คือ JSON ที่ `main.py` สร้าง
@@ -144,9 +157,13 @@ curl 'https://atg.moomou.com/api/v1/logs?site_id=station-1&limit=10' -H 'x-api-k
 }
 ```
 
+แต่ละแถวมี `alerts` เพิ่ม: เกณฑ์ที่ inventory ของ log นั้นข้าม (ตัดสินด้วยการตั้งค่าปัจจุบัน) เช่น
+`[{"tank": 2, "metric": "low_fuel_percent", "level": "warn", "value": 15, "threshold": 20, "message": "Tank 2 fuel is 15%, below 20%"}]`
+ว่าง `[]` เมื่อไม่มีอะไรข้าม
+
 ## GET /api/v1/logs/latest
 
-ค่าล่าสุดของแต่ละสถานี (หนึ่งแถวต่อ `site_id`) เหมาะกับหน้า dashboard ไม่มี `metadata`
+ค่าล่าสุดของแต่ละสถานี (หนึ่งแถวต่อ `site_id`) เหมาะกับหน้า dashboard ไม่มี `metadata` มี `alerts` เหมือน `GET /api/v1/logs`
 
 ```bash
 curl https://atg.moomou.com/api/v1/logs/latest -H 'x-api-key: <key>'
@@ -159,5 +176,5 @@ curl 'https://atg.moomou.com/api/v1/logs/latest?site_id=station-1' -H 'x-api-key
 
 ## การเก็บข้อมูล
 
-MariaDB/MySQL ตาราง `devices` (หนึ่งแถวต่อ site) และ `logs` (`payload` เป็น JSON ทั้งก้อน, FK `logs.site_id → devices.site_id`)
+MariaDB/MySQL ตาราง `devices` (หนึ่งแถวต่อ site), `logs` (`payload` เป็น JSON ทั้งก้อน, FK `logs.site_id → devices.site_id`) และ `tank_alarm_settings` (เกณฑ์ต่อถัง)
 มี index ที่ `(site_id, collected_at)` schema อยู่ใน repo `fuel-api` ที่ `prisma/schema.prisma`
