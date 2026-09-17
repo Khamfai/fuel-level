@@ -40,7 +40,16 @@ python3 main.py -v                      # แสดง raw bytes ที่ gauge
 cd ~/fuel-level
 sudo bash deploy/install.sh
 ```
-
+### Test
+```python
+python3 -c "
+from tls.transport import TlsGauge
+with TlsGauge('/dev/ttyUSB0') as g:
+    print('i201', g.query('i201', '00'))
+    print('i205', g.query('i205', '00'))
+    print('I205', g.query('I205', '00'))
+"
+```
 สคริปต์จะ:
 
 1. เพิ่ม user เข้ากลุ่ม `dialout`
