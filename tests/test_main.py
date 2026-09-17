@@ -1,10 +1,14 @@
 import unittest
 from datetime import datetime
+from unittest.mock import patch
 
-from main import collect, parse_args, run_once
+import main as main_module
+from main import collect, open_device, parse_args, run_once
+from modbus.rtu import ModbusTimeout
+from modbus.probe import PwlProbe
 from tls.api import ApiError
 from tls.protocol import InventoryReport, ProtocolError, StatusReport, TankInventory
-from tls.transport import GaugeTimeout
+from tls.transport import GaugeTimeout, TlsGauge
 
 INVENTORY = InventoryReport("i201", datetime(2026, 9, 15), (TankInventory(1, 1, 0, 1, 1, 0, 20, 0),))
 STATUS = StatusReport("i205", None, ())
@@ -80,6 +84,45 @@ class CollectTest(unittest.TestCase):
             collect(gauge, ["inventory", "status"], "00", "s1")
 
 
+class InventoryOnlyGauge:
+    """Like PwlProbe: has .inventory() and nothing else."""
+
+    def inventory(self, tank):
+        return INVENTORY
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        return False
+
+
+class BrokenProbe:
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        return False
+
+    def inventory(self, tank):
+        raise ModbusTimeout("no reply within 2.0s")
+
+
+class CollectWithProbeTest(unittest.TestCase):
+    def test_only_looks_up_the_readers_it_was_asked_for(self):
+        payload = collect(InventoryOnlyGauge(), ["inventory"], "00", "s1")
+        self.assertIn("inventory", payload)
+
+
+class MainLoopTest(unittest.TestCase):
+    def test_a_raw_modbus_error_is_logged_not_raised(self):
+        with patch.object(main_module, "open_device", lambda args: BrokenProbe()), \
+                self.assertLogs("fuel-level", level="ERROR") as logs:
+            code = main_module.main(["--source", "modbus", "--port", "/dev/null", "--dry-run"])
+        self.assertEqual(code, 1)
+        self.assertIn("no reply within 2.0s", logs.output[-1])
+
+
 class RunOnceTest(unittest.TestCase):
     def test_sends_heartbeat_then_posts_the_log(self):
         client = FakeClient()
@@ -123,6 +166,40 @@ class ParseArgsTest(unittest.TestCase):
         args = parse_args([])
         self.assertIsNone(args.device_name)
         self.assertFalse(args.no_heartbeat)
+
+    def test_source_defaults_to_tls_console(self):
+        args = parse_args([])
+        self.assertEqual(args.source, "tls")
+        self.assertEqual(args.probe_addrs, [1])
+
+    def test_probe_addrs_is_a_list_of_modbus_addresses(self):
+        args = parse_args(["--source", "modbus", "--probe-addrs", "1, 2,3"])
+        self.assertEqual(args.probe_addrs, [1, 2, 3])
+
+    def test_probe_addrs_must_be_1_to_255(self):
+        for bad in ("0", "256", "x"):
+            with self.assertRaises(SystemExit):
+                parse_args(["--source", "modbus", "--probe-addrs", bad])
+
+    def test_modbus_source_only_supports_inventory(self):
+        with self.assertRaises(SystemExit):
+            parse_args(["--source", "modbus", "--reports", "inventory,status"])
+        args = parse_args(["--source", "modbus"])
+        self.assertEqual(args.reports, ["inventory"])
+
+    def test_unknown_source_is_rejected(self):
+        with self.assertRaises(SystemExit):
+            parse_args(["--source", "wifi"])
+
+
+class OpenDeviceTest(unittest.TestCase):
+    def test_tls_source_opens_the_console(self):
+        self.assertIsInstance(open_device(make_args()), TlsGauge)
+
+    def test_modbus_source_opens_the_probe_with_configured_addresses(self):
+        device = open_device(make_args("--source", "modbus", "--probe-addrs", "3,4"))
+        self.assertIsInstance(device, PwlProbe)
+        self.assertEqual(device._addresses, (3, 4))
 
 
 if __name__ == "__main__":

@@ -1,4 +1,7 @@
-"""Poll a Veeder-Root TLS gauge over serial and push the readings to fuel-api.
+"""Poll a tank gauge over serial and push the readings to fuel-api.
+
+Two sources: the Veeder-Root TLS-350 console over RS-232 (default), or Pokcenser
+PWL-M200 probes wired straight to a USB-RS485 converter (--source modbus).
 
 Each cycle sends a heartbeat (POST /api/v1/devices/{site}/heartbeat) so the server can
 tell "device alive" from "gauge reporting", then reads the gauge and POSTs the
@@ -11,9 +14,10 @@ Examples:
     python3 main.py --interval 60                    # poll forever, every 60 s
     python3 main.py --api-url https://other.example  # different server (base URL)
     python3 main.py --device-name "Station 7" --lat 13.75 --lng 100.5   # register, then poll
+    python3 main.py --source modbus --probe-addrs 1,2,3 --dry-run        # three probes, no console
 
-Environment variables (overridden by flags): TLS_PORT, TLS_BAUD, TLS_API_URL,
-TLS_API_KEY, TLS_SITE_ID, TLS_DEVICE_NAME, TLS_LAT, TLS_LNG.
+Environment variables (overridden by flags): TLS_SOURCE, TLS_PORT, TLS_BAUD, TLS_PROBE_ADDRS,
+TLS_API_URL, TLS_API_KEY, TLS_SITE_ID, TLS_DEVICE_NAME, TLS_LAT, TLS_LNG.
 """
 
 from __future__ import annotations
@@ -28,11 +32,17 @@ from typing import Any, Callable
 
 import serial
 
+from modbus.probe import PwlProbe
+from modbus.rtu import MAX_ADDRESS, ModbusError
 from tls.api import ApiClient, ApiError, build_payload
 from tls.protocol import ProtocolError
 from tls.transport import DEFAULT_BAUD, GaugeTimeout, TlsGauge, find_port
 
 REPORTS = ("inventory", "status", "delivery")
+SOURCES = ("tls", "modbus")
+MODBUS_REPORTS = ("inventory",)  # the probe has no alarms or delivery history
+DEFAULT_REPORTS = {"tls": "inventory,status", "modbus": "inventory"}
+DEFAULT_PROBE_ADDRS = "1"
 DEFAULT_API_URL = "https://atg.moomou.com"  # fuel-api on Dokploy
 log = logging.getLogger("fuel-level")
 
@@ -47,6 +57,12 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
     )
     p.add_argument(
+        "--source",
+        choices=SOURCES,
+        default=os.environ.get("TLS_SOURCE", "tls"),
+        help="tls = TLS-350 console over RS-232, modbus = PWL-M200 probes over RS-485 (default: %(default)s)",
+    )
+    p.add_argument(
         "--port",
         default=os.environ.get("TLS_PORT"),
         help="serial device, e.g. /dev/cu.usbserial-1420",
@@ -54,11 +70,16 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     p.add_argument(
         "--baud", type=int, default=int(os.environ.get("TLS_BAUD", DEFAULT_BAUD))
     )
+    p.add_argument(
+        "--probe-addrs",
+        default=os.environ.get("TLS_PROBE_ADDRS", DEFAULT_PROBE_ADDRS),
+        help="modbus only: comma list of probe addresses, one per tank in tank order (default: %(default)s)",
+    )
     p.add_argument("--tank", default="00", help="tank number, 00 = all tanks")
     p.add_argument(
         "--reports",
-        default="inventory,status",
-        help=f"comma list of {', '.join(REPORTS)}",
+        default=None,
+        help=f"comma list of {', '.join(REPORTS)} (default: {DEFAULT_REPORTS['tls']}; modbus: {DEFAULT_REPORTS['modbus']})",
     )
     p.add_argument(
         "--api-url",
@@ -103,10 +124,23 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     p.add_argument("-v", "--verbose", action="store_true")
     args = p.parse_args(argv)
 
-    args.reports = [r.strip() for r in args.reports.split(",") if r.strip()]
+    raw_reports = args.reports if args.reports is not None else DEFAULT_REPORTS[args.source]
+    args.reports = [r.strip() for r in raw_reports.split(",") if r.strip()]
     unknown = [r for r in args.reports if r not in REPORTS]
     if unknown:
         p.error(f"unknown report(s): {', '.join(unknown)}")
+    if args.source == "modbus":
+        unsupported = [r for r in args.reports if r not in MODBUS_REPORTS]
+        if unsupported:
+            p.error(
+                f"--source modbus only supports {', '.join(MODBUS_REPORTS)}; "
+                f"drop {', '.join(unsupported)} from --reports"
+            )
+
+    try:
+        args.probe_addrs = _parse_probe_addrs(args.probe_addrs)
+    except ValueError as exc:
+        p.error(str(exc))
 
     given = [
         name
@@ -124,20 +158,33 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     return args
 
 
+def _parse_probe_addrs(raw: str) -> list[int]:
+    addrs = []
+    for item in raw.split(","):
+        item = item.strip()
+        if not item.isdigit() or not 1 <= int(item) <= MAX_ADDRESS:
+            raise ValueError(f"--probe-addrs entries must be 1..{MAX_ADDRESS}, got {item!r}")
+        addrs.append(int(item))
+    return addrs
+
+
+def open_device(args: argparse.Namespace) -> Any:
+    """The context manager for the configured source; both expose .inventory(tank)."""
+    if args.source == "modbus":
+        return PwlProbe(args.port, args.baud, addresses=args.probe_addrs)
+    return TlsGauge(args.port, args.baud, verify_checksum=not args.no_verify_checksum)
+
+
 def collect(
-    gauge: TlsGauge, reports: list[str], tank: str, site_id: str
+    gauge: Any, reports: list[str], tank: str, site_id: str
 ) -> dict[str, Any]:
     """Read the requested reports from the gauge and build the upload payload."""
-    readers = {
-        "inventory": gauge.inventory,
-        "status": gauge.status,
-        "delivery": gauge.last_delivery,
-    }
+    readers = {"inventory": "inventory", "status": "status", "delivery": "last_delivery"}
     results: dict[str, Any] = {}
     failures: list[Exception] = []
     for name in reports:
         try:
-            results[name] = readers[name](tank)
+            results[name] = getattr(gauge, readers[name])(tank)
         except (GaugeTimeout, ProtocolError) as exc:
             log.error("%s report failed, skipping it: %s", name, exc)
             failures.append(exc)
@@ -160,15 +207,13 @@ def send_heartbeat(client: ApiClient) -> None:
 def run_once(
     args: argparse.Namespace,
     client: ApiClient | None,
-    open_gauge: Callable[..., Any] = TlsGauge,
+    open_gauge: Callable[[argparse.Namespace], Any] | None = None,
 ) -> None:
     """One poll cycle: heartbeat first (so a dead gauge still shows the device alive), then read and post."""
     if client is not None and not args.no_heartbeat:
         send_heartbeat(client)
 
-    with open_gauge(
-        args.port, args.baud, verify_checksum=not args.no_verify_checksum
-    ) as gauge:
+    with (open_gauge or open_device)(args) as gauge:
         payload = collect(gauge, args.reports, args.tank, args.site_id)
 
     if client is None:
@@ -206,13 +251,22 @@ def main(argv: list[str] | None = None) -> int:
     client = (
         None if args.dry_run else ApiClient(args.api_url, args.site_id, args.api_key)
     )
-    log.info(
-        "gauge on %s @ %d baud, tank %s, reports %s",
-        port,
-        args.baud,
-        args.tank,
-        ",".join(args.reports),
-    )
+    if args.source == "modbus":
+        log.info(
+            "probes at modbus address(es) %s on %s @ %d baud, reports %s",
+            ",".join(map(str, args.probe_addrs)),
+            port,
+            args.baud,
+            ",".join(args.reports),
+        )
+    else:
+        log.info(
+            "gauge on %s @ %d baud, tank %s, reports %s",
+            port,
+            args.baud,
+            args.tank,
+            ",".join(args.reports),
+        )
     if client is not None:
         log.info(
             "api %s, site %s, heartbeat %s",
@@ -231,7 +285,7 @@ def main(argv: list[str] | None = None) -> int:
     while True:
         try:
             run_once(args, client)
-        except (serial.SerialException, GaugeTimeout, ProtocolError, ApiError) as exc:
+        except (serial.SerialException, GaugeTimeout, ProtocolError, ModbusError, ApiError) as exc:
             log.error("%s", exc)
             if not args.interval:
                 return 1

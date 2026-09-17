@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-A Python 3 poller that runs on a Raspberry Pi, reads tank reports from a Veeder-Root TLS-350 gauge over RS-232, and POSTs them as JSON to the separate `fuel-api` service (Bun + Elysia, lives in another repo, default base URL `https://atg.moomou.com`). The only third-party dependency is `pyserial`; everything else, including the HTTP client, is standard library. The user-facing docs under `docs/` are in Thai.
+A Python 3 poller that runs on a Raspberry Pi, reads tank reports from a Veeder-Root TLS-350 gauge over RS-232 (or from Pokcenser PWL-M200 probes over RS-485 Modbus RTU with `--source modbus`), and POSTs them as JSON to the separate `fuel-api` service (Bun + Elysia, lives in another repo, default base URL `https://atg.moomou.com`). The only third-party dependency is `pyserial`; everything else, including the HTTP client, is standard library. The user-facing docs under `docs/` are in Thai.
 
 ## Commands
 
@@ -19,6 +19,8 @@ python3 main.py --dry-run                              # read gauge, print paylo
 python3 mock_server.py                                 # fake fuel-api on http://127.0.0.1:8000
 python3 main.py --api-url http://127.0.0.1:8000        # poll once against the mock
 python3 main.py --interval 60 --reports inventory,status,delivery
+python3 main.py --source modbus --probe-addrs 1,2,3 --dry-run   # probes on RS-485, no console
+python3 probe_scan.py --find                           # ask the single connected probe its address
 ```
 
 Tests never touch real hardware or the network: `tests/test_transport.py` swaps in a `FakeSerial`, `tests/test_main.py` a `FakeGauge` passed through `run_once(open_gauge=...)`, and `tests/test_api.py` patches `urllib`. Keep new tests hermetic the same way.
@@ -33,7 +35,9 @@ Three layers, each importable without the one above it:
 2. **`tls/transport.py`**: `TlsGauge`, a context manager over `serial.Serial`. `query` sends a command, reads until ETX, and retries once on `GaugeTimeout`. `inventory()` / `status()` / `last_delivery()` call `query` and hand the frame to the matching parser. `find_port` auto-detects the USB adapter by name hints.
 3. **`tls/api.py`**: `ApiClient` (register device, heartbeat, post log; Bearer auth) and `build_payload`, which turns the dataclasses into the JSON document. `_to_json` rounds floats to 3 decimals and adds the derived `amount` to each delivery.
 
-`main.py` wires them: `parse_args` (every flag falls back to a `TLS_*` env var), then `main` loops `run_once`, which sends the heartbeat first, opens the gauge, calls `collect`, and posts. `--dry-run` sets `client` to `None` and prints instead of posting.
+**Second source, same shape:** `modbus/rtu.py` is a minimal Modbus RTU master (function 04 only, CRC-16, strips a looped-back echo, 2 s response timeout because the probe takes ~1 s to answer). `modbus/probe.py` wraps it in `PwlProbe`, which reads 16 input registers per probe address, decodes the byte-swapped IEEE floats, and returns the same `InventoryReport` / `TankInventory` the TLS parser does, so everything above the gauge layer is shared. Volumes are `0` (the probe has no strapping table), `timestamp` is `None`, `function` is `"pwl-m200"`. The protocol test vectors come from the Pokcenser "RS485 Protocol V2.0" document. `probe_scan.py` is the field tool for finding addresses and eyeballing readings.
+
+`main.py` wires them: `parse_args` (every flag falls back to a `TLS_*` env var), then `main` loops `run_once`, which sends the heartbeat first, opens the device via `open_device(args)` (TLS console or Modbus probes by `--source`), calls `collect`, and posts. `--dry-run` sets `client` to `None` and prints instead of posting. In modbus mode `--probe-addrs` lists probes in tank order and only the `inventory` report is allowed; `parse_args` rejects the others.
 
 ## Behaviour worth knowing before changing things
 

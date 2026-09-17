@@ -1,6 +1,7 @@
 # fuel-level
 
-Reads tank data from a Veeder-Root TLS-350 gauge over RS-232 and pushes it to the fuel-api REST service.
+Reads tank data from a Veeder-Root TLS-350 gauge over RS-232, or from Pokcenser PWL-M200
+magnetostrictive probes over RS-485 Modbus RTU, and pushes it to the fuel-api REST service.
 
 **Full documentation (Thai): [docs/](docs/README.md)** — overview, server setup, Raspberry Pi setup, gauge protocol, API, troubleshooting.
 
@@ -12,6 +13,9 @@ Reads tank data from a Veeder-Root TLS-350 gauge over RS-232 and pushes it to th
 | `tls/protocol.py` | Frame building, checksum, parsers for 201 / 205 / 20C |
 | `tls/transport.py` | Serial I/O (`TlsGauge`), port auto-detection |
 | `tls/api.py` | `ApiClient` (device registration, heartbeat, log upload, Bearer auth) and `build_payload` |
+| `modbus/rtu.py` | Minimal Modbus RTU master (function 04, CRC-16, echo stripping) |
+| `modbus/probe.py` | `PwlProbe`: PWL-M200 registers -> the same `InventoryReport` the TLS path produces |
+| `probe_scan.py` | Field tool: find a probe's Modbus address, print raw readings |
 | `mock_server.py` | Zero-dependency stand-in for fuel-api that prints what it receives |
 | `tests/` | `python3 -m unittest discover -s tests` |
 
@@ -27,8 +31,30 @@ python3 main.py                                             # one shot to the de
 python3 main.py --interval 60 --reports inventory,status,delivery
 ```
 
-Flags fall back to env vars `TLS_PORT`, `TLS_BAUD`, `TLS_API_URL`, `TLS_API_KEY`, `TLS_SITE_ID`,
-`TLS_DEVICE_NAME`, `TLS_LAT`, `TLS_LNG`.
+Flags fall back to env vars `TLS_SOURCE`, `TLS_PORT`, `TLS_BAUD`, `TLS_PROBE_ADDRS`, `TLS_API_URL`,
+`TLS_API_KEY`, `TLS_SITE_ID`, `TLS_DEVICE_NAME`, `TLS_LAT`, `TLS_LNG`.
+
+## Probes without a console (`--source modbus`)
+
+Pokcenser PWL-M200 / PWL-M300 probes can be wired straight to a USB-RS485 converter, no TLS console
+in between. Each probe is one Modbus RTU slave (9600 8N1) and measures one tank.
+
+```bash
+python3 probe_scan.py --find                              # single probe on the bus: prints its address
+python3 probe_scan.py --addrs 1,2,3                       # raw fuel/water/temperature per probe
+python3 main.py --source modbus --probe-addrs 1,2,3 --dry-run
+python3 main.py --source modbus --probe-addrs 1,2,3 --interval 60
+```
+
+- `--probe-addrs` lists the probes in tank order: the first address becomes tank 1, and so on.
+- Only the `inventory` report exists in this mode (the probe has no alarms or delivery history), and
+  it is the default. `inventory.function` is `"pwl-m200"` and `timestamp` is `null` (the probe has no clock).
+- The probe reports `fuel_height`, `water_height` and `temperature` (mm / °C). It has no strapping table,
+  so `fuel_volume`, `tc_volume`, `ullage` and `water_volume` are sent as `0`.
+- A probe that does not answer is skipped with an error log; the cycle fails only when every probe fails.
+- Wiring (from the Pokcenser installation manual): white = RS-485 A, blue = RS-485 B, red = +24 V,
+  black = power negative, yellow = shield. The probe needs its own 24 to 26 VDC supply; tie its negative
+  to the converter's GND.
 
 `--api-url` is the API **base URL** (default `https://atg.moomou.com`);
 the endpoints below are appended to it. An old value ending in `/readings`, `/v1/logs` or `/api/v1/logs` still works,
