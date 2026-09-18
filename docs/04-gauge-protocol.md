@@ -2,6 +2,9 @@
 
 อ้างอิงเอกสาร `vr350-3.pdf` (Serial Interface Manual) โค้ดอยู่ที่ `tls/protocol.py`
 
+> เอกสารนี้ใช้กับโหมด console (`TLS_SOURCE` ไม่ได้ตั้ง หรือ `tls`) เท่านั้น
+> ถ้าต่อโพรบ PWL-M200 เข้า Pi โดยตรง โปรโตคอลเป็นคนละแบบ ดู [07-probe-direct.md](07-probe-direct.md)
+
 ## การตั้งค่า serial
 
 9600 baud, 8 data bits, no parity, 1 stop bit (8N1) เปลี่ยนได้ด้วย `--baud` ถ้า gauge ตั้งไว้ต่างจากนี้

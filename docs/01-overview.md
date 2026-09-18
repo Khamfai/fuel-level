@@ -3,22 +3,34 @@
 ## ส่วนประกอบ
 
 ```
- ถังน้ำมัน                Raspberry Pi                          Mac (dev server)
+ ถังน้ำมัน                Raspberry Pi                          Server (Dokploy)
 ┌──────────────┐  RS-232  ┌─────────────────────┐   HTTP POST   ┌──────────────────────┐
-│ Veeder-Root  │ ───────► │ main.py (Python)    │ ────────────► │ backend/ (Bun)       │
-│ TLS-350      │ ◄─────── │ systemd: fuel-level │  JSON ทุก 60s  │ SQLite: data/fuel.db │
+│ Veeder-Root  │ ───────► │ main.py (Python)    │ ────────────► │ fuel-api (Bun/Elysia)│
+│ TLS-350      │ ◄─────── │ systemd: fuel-level │  JSON ทุก 60s  │ MariaDB/MySQL        │
 └──────────────┘          └─────────────────────┘               └──────────────────────┘
                            /dev/ttyUSB0                          https://atg.moomou.com
 ```
 
+หรือแบบไม่มี console: ต่อโพรบเข้า Pi โดยตรง
+
+```
+ ถังน้ำมัน                      Raspberry Pi
+┌──────────────┐  RS-485  ┌──────────┐  USB  ┌─────────────────────┐   HTTP POST
+│ โพรบ Pokcenser│ ───────► │ USB-RS485│ ────► │ main.py             │ ────────────► server เดิม
+│ PWL-M200     │ ◄─────── │ converter│       │ TLS_SOURCE=pokcenser│
+└──────────────┘          └──────────┘       └─────────────────────┘
+   ▲ 24 VDC
+```
+
 1. **Gauge (TLS-350)** ตอบคำสั่งผ่าน serial เป็นข้อความ ASCII ตามโปรโตคอลของ Veeder-Root
-   (หรือต่อโพรบ Pokcenser PWL-M200 เข้า Pi โดยตรงผ่าน RS-485 ดู [07-probe-direct.md](07-probe-direct.md))
+   หรือ **โพรบ PWL-M200** ตอบคำถาม 2 ไบต์ด้วยข้อความ `ระดับน้ำมัน:ระดับน้ำ:อุณหภูมิ` ที่ 4800 baud
+   (ดู [07-probe-direct.md](07-probe-direct.md)) เลือกแบบใดแบบหนึ่งต่อ Pi ด้วย `TLS_SOURCE`
 2. **Raspberry Pi** รัน `main.py` เป็น service ตอน boot ส่งคำสั่งไปถาม gauge ทุก 60 วินาที
    แปลงคำตอบเป็น JSON แล้ว POST ไปที่ server
-3. **Mac** รัน Bun server รับ JSON ตรวจสอบรูปแบบ แล้วเก็บลง SQLite
-   มี GET endpoint ให้ดึงข้อมูลไปแสดงผล
+3. **Server** fuel-api (repo แยก) รับ JSON ตรวจสอบรูปแบบ เก็บลง MariaDB/MySQL
+   มี GET endpoint ให้ dashboard ดึงข้อมูลไปแสดงผล ดู [02-server.md](02-server.md)
 
-API ตัวจริงรันบน Coolify ที่ `https://atg.moomou.com` (ระหว่างพัฒนาอาจชี้ไป Mac ผ่าน Tailscale แทน) ทุกรอบ Pi ส่ง heartbeat ก่อนอ่าน gauge เพื่อให้ server รู้ว่า device ยังทำงานแม้ gauge จะไม่ตอบ
+ทุกรอบ Pi ส่ง heartbeat ก่อนอ่าน gauge เพื่อให้ server รู้ว่า device ยังทำงานแม้ gauge จะไม่ตอบ
 
 ## โครงสร้างไฟล์
 
@@ -39,12 +51,6 @@ fuel-level/
 │   ├── fuel-level.env.example  ตัวอย่างค่า config
 │   └── install.sh           สคริปต์ติดตั้งบน Pi
 ├── mock_server.py       server จำลองแบบไม่ต้องลงอะไร ใช้ดู payload
-├── backend/             Bun dev server
-│   ├── index.ts         จุดเริ่ม อ่าน env เปิด DB
-│   └── src/
-│       ├── schema.ts    ตรวจสอบรูปแบบ JSON ที่รับเข้ามา
-│       ├── db.ts        SQLite store (bun:sqlite)
-│       └── routes.ts    HTTP handlers, auth, logging
 └── docs/                เอกสารชุดนี้
 ```
 
@@ -61,6 +67,6 @@ fuel-level/
 ## ทดสอบโดยไม่ต้องมี gauge
 
 ```bash
-python3 -m unittest discover -s tests      # ฝั่ง Python (18 tests)
-cd backend && bun test                     # ฝั่ง server (19 tests)
+python3 -m unittest discover -s tests      # ฝั่ง Python (79 tests)
+python3 mock_server.py                     # server จำลอง แล้วรัน main.py --api-url http://127.0.0.1:8000
 ```

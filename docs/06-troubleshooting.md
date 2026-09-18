@@ -4,9 +4,9 @@
 
 ## ฝั่ง Pi
 
-### `ModuleNotFoundError: No module named 'tls'`
+### `ModuleNotFoundError: No module named 'tls'` หรือ `'pokcenser'`
 
-copy มาแค่ `main.py` ไม่มีโฟลเดอร์ `tls/` ให้ copy ทั้งโปรเจกต์ (`scp -r`) แล้วเช็ค `ls tls/`
+copy มาแค่ `main.py` ไม่มีโฟลเดอร์ `tls/` หรือ `pokcenser/` ให้ copy ทั้งโปรเจกต์ (`scp -r`) แล้วเช็ค `ls tls/ pokcenser/`
 
 ### `ModuleNotFoundError: No module named 'serial'`
 
@@ -64,16 +64,62 @@ gauge ตอบ 205 ไม่สม่ำเสมอเมื่อถูกถ
 gauge ตอบ `9999` แปลว่าไม่รู้จักคำสั่ง รุ่น/firmware อาจไม่รองรับ function นั้น
 ตัดออกจาก `--reports` ได้
 
-### `cannot reach https://atg.moomou.com/api/v1/logs`
+## โหมดโพรบ (`TLS_SOURCE=pokcenser`)
 
-Mac ไม่ได้เปิด server หรือ Tailscale ไม่เชื่อม
+ทดสอบด้วยมือทุกครั้งให้หยุด service ก่อน: `sudo systemctl stop fuel-level` ไม่งั้นสองโปรแกรมจะแย่ง `/dev/ttyUSB0`
+และได้ error `device reports readiness to read but returned no data (... multiple access on port?)`
+
+### `no reply within 2.0s (0 bytes received)` ทุกถัง
+
+โพรบเงียบสนิท ไล่ตามลำดับ (เรียงจากที่พบบ่อย)
+
+1. service ยังรันอยู่และแย่ง port `systemctl is-active fuel-level` ต้องได้ `inactive` ตอนทดสอบด้วยมือ
+2. เลขถังผิด รัน `python3 probe_scan.py --find` จะไล่ถามถัง 1 ถึง 8 ให้
+3. ไม่มีกราวด์ร่วม GND ของ converter ต้องต่อกับขั้วลบของไฟ 24 V ที่จ่ายให้โพรบ (สายดำ) แม้จะจ่ายไฟจาก console ก็ตาม
+4. สาย A/B สลับ ลองสลับสายขาวกับน้ำเงินที่ converter
+5. โพรบไม่มีไฟ วัดระหว่างสายแดงกับดำต้องได้ 24 ถึง 26 V
+6. baud ไม่ใช่ 4800 ถ้ามีคนตั้ง `TLS_BAUD=9600` ค้างไว้ใน `/etc/default/fuel-level` จะไปทับค่าของโหมดนี้ ให้ลบหรือคอมเมนต์ทิ้ง
+
+### `no reply within 2.0s (N bytes received: ...)` โดย N > 0
+
+มีอะไรวิ่งบนสายแต่ไม่ใช่คำตอบที่ถูกต้อง
+
+- เห็นแค่ `e2 42` (2 ไบต์) คือเสียงสะท้อนคำถามของเราเอง โพรบไม่ตอบ ดูรายการข้างบน
+- เห็นไบต์แปลก ๆ จำนวนมาก เช่น `18 18 fe 18 06 98 ...` มักเป็น baud ผิด ตรวจว่า `TLS_BAUD` ไม่ได้ตั้งค่าอื่นทับ 4800
+
+### `crc mismatch`
+
+สัญญาณเสียหายระหว่างทาง มักเกิดจากไม่มีกราวด์ร่วม สายยาวไม่มี shield หรือ console ยังพ่วงอยู่บนสายเดียวกันจนคำตอบชนกัน
+
+### `--find` เห็นถังที่ไม่มีจริง หรือค่าถังหนึ่งซ้ำกับอีกถัง
+
+console ยังต่ออยู่บนสาย A/B เดียวกันและกำลังถามโพรบเองทุกวินาที คำตอบของโพรบไม่มีเลขถังกำกับ
+Pi จึงหยิบคำตอบที่โพรบตอบ console มาเป็นของตัวเองได้ ให้ถอดสายขาว/น้ำเงินออกจาก console เหลือแค่สายไฟ
+
+### `Undervoltage detected!` ใน `dmesg` และ USB หลุดเป็นระยะ
+
+อะแดปเตอร์ของ Pi จ่ายไฟไม่พอ อาการคือ `/dev/ttyUSB0` หายไปกลางคัน หรือ error `device disconnected`
+เปลี่ยนเป็นอะแดปเตอร์ 5 V 3 A ของแท้ และเลี่ยงเสียบอุปกรณ์ USB อื่นพร้อมกัน
 
 ```bash
-tailscale status                              # บน Pi ต้องเห็น Mac
+dmesg | grep -iE "undervoltage|ftdi|disconnect" | tail
+```
+
+### `--source pokcenser only supports inventory`
+
+ใส่ `status` หรือ `delivery` ใน `--reports` ไว้ โพรบไม่มีข้อมูลสองอย่างนี้ ลบออกหรือปล่อยให้ใช้ค่า default
+
+### `cannot reach https://atg.moomou.com/api/v1/logs`
+
+Pi ออกอินเทอร์เน็ตไม่ได้ หรือ server ล่ม
+
+```bash
+ping -c 3 8.8.8.8                           # เน็ตของ Pi
 curl https://atg.moomou.com/health          # ต้องได้ {"success":true,"data":{"ok":true}}
 ```
 
-บน Mac ต้องรัน `bun run dev` ค้างไว้ และ IP จาก `tailscale ip -4` ต้องตรงกับ `TLS_API_URL`
+ถ้า ping ได้แต่ health ไม่ตอบ เป็นฝั่ง server (Dokploy) ไม่ใช่ Pi ข้อมูลรอบที่ส่งไม่ได้จะหายไป
+โปรแกรมไม่หยุดทำงาน จะลองใหม่รอบถัดไป
 
 ### `HTTP 401`
 
@@ -92,30 +138,6 @@ journalctl -u fuel-level -b              # log ตั้งแต่ boot ล่
 ```
 
 ถ้าขึ้น `status=203/EXEC` path ใน unit file ไม่ตรง รัน `sudo bash deploy/install.sh` ใหม่
-
-## ฝั่ง Mac
-
-### `bun: command not found`
-
-```bash
-brew install oven-sh/bun/bun
-```
-
-### `EADDRINUSE` port 3000 ถูกใช้อยู่
-
-มี server เก่ารันค้าง
-
-```bash
-lsof -i :3000
-kill <pid>
-```
-
-หรือรันบน port อื่น `PORT=3001 bun run dev` แล้วแก้ `TLS_API_URL` บน Pi
-
-### Pi ส่งมาแต่ไม่เห็นใน log
-
-`HOST` ต้องเป็น `0.0.0.0` (ค่า default) ถ้าตั้งเป็น `127.0.0.1` เครื่องอื่นจะเข้าไม่ได้
-และ macOS Firewall อาจถาม อนุญาต bun ตอนเปิดครั้งแรก
 
 ## เก็บ raw bytes ส่งให้ผู้พัฒนา
 

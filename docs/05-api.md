@@ -1,7 +1,8 @@
 # 05 REST API
 
-Base URL บน production: `https://atg.moomou.com`
-(ตอนพัฒนาบนเครื่องเดียวกันใช้ `http://localhost:3000`) เอกสารแบบ interactive อยู่ที่ `{base}/docs`
+Base URL บน production: `https://atg.moomou.com` (fuel-api บน Dokploy ดู [02-server.md](02-server.md))
+ทดสอบโดยไม่แตะ server จริงใช้ `python3 mock_server.py` แล้ว `--api-url http://127.0.0.1:8000`
+เอกสารแบบ interactive อยู่ที่ `{base}/docs`
 และ OpenAPI ที่ `{base}/docs/json`
 
 ทุก response เป็น **envelope** เดียวกัน
@@ -120,6 +121,39 @@ Pi เรียก endpoint นี้ทุกรอบ body คือ JSON ท�
 - `timestamp` ในแต่ละ section คือนาฬิกาของ gauge ไม่มี timezone อาจเป็น `null`
 - section ที่ไม่ได้ขอใน `--reports` หรืออ่านไม่ผ่าน จะไม่มีใน body
 - server เก็บ `payload` เป็นคอลัมน์ JSON ลำดับ key ตอนอ่านกลับอาจต่างจากที่ส่ง
+
+### body จากโหมดโพรบ (`TLS_SOURCE=pokcenser`)
+
+รูปแบบเดียวกัน แต่มีเฉพาะ section `inventory` และค่าบางฟิลด์ต่างจาก console
+
+```json
+{
+  "site_id": "station-2",
+  "collected_at": "2026-09-18T04:49:02+00:00",
+  "inventory": {
+    "function": "pokcenser",
+    "timestamp": null,
+    "tanks": [
+      {"tank": 3, "fuel_volume": 0.0, "tc_volume": 0.0, "ullage": 0.0,
+       "fuel_height": 1564.0, "water_height": 87.1, "temperature": 26.9, "water_volume": 0.0}
+    ]
+  }
+}
+```
+
+| ฟิลด์ | โหมดโพรบ |
+|-------|----------|
+| `function` | `"pokcenser"` ใช้แยกได้ว่า log นี้มาจากโพรบไม่ใช่ console |
+| `timestamp` | `null` เสมอ โพรบไม่มีนาฬิกา ใช้ `collected_at` แทน |
+| `tank` | เลขถังตามหน้าจอ console (ค่าใน `TLS_PROBE_ADDRS`) |
+| `fuel_height`, `water_height` | mm จากโพรบ |
+| `temperature` | °C จากโพรบ |
+| `fuel_volume`, `tc_volume`, `ullage`, `water_volume` | `0` เสมอ โพรบไม่มีตารางเทียบถัง |
+| `status`, `delivery` | ไม่มี โพรบไม่มี alarm และประวัติการเติม |
+
+ผลต่อ tank alarm thresholds: เกณฑ์แบบเปอร์เซ็นต์ (`low_fuel_percent`, `high_water_percent`) คำนวณไม่ได้
+เพราะ `ullage` และ `fuel_volume` เป็น 0 ให้ตั้งเกณฑ์แบบความสูงหรืออุณหภูมิแทน (`high_water_height`, `high_temperature`)
+หรือใส่ `capacity_volume` ของถังในแถว alarm ถ้า server รองรับการคำนวณจากความสูง
 
 ทดสอบด้วย curl:
 

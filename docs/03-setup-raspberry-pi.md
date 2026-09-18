@@ -20,14 +20,14 @@
 - แบบ A: สาย USB-to-RS232 ต่อจาก Pi ไปที่ port serial ของ console จะเห็นเป็น `/dev/ttyUSB0`
 - แบบ B: สาย USB-to-RS485 (เช่น FT232RL + 75176) ต่อขั้ว A/B และ GND ไปที่โพรบ และโพรบต้องมีไฟ 24 VDC
 - อะแดปเตอร์ Pi ต้องจ่ายได้ 5 V 3 A ถ้า `dmesg | grep -i undervoltage` มีข้อความ ตัวแปลง USB จะหลุดเป็นระยะ
-- Pi ต่อ Tailscale เดียวกับ Mac (`tailscale status`)
+- Pi ออกอินเทอร์เน็ตได้ (`curl https://atg.moomou.com/health`)
 
 ## 1. copy โปรเจกต์ไปที่ Pi
 
 ต้อง copy **ทั้งโฟลเดอร์** ไม่ใช่แค่ `main.py` เพราะโค้ดอยู่ในโฟลเดอร์ `tls/` และ `pokcenser/` ด้วย
 
 ```bash
-# รันบน Mac
+# รันบนเครื่องพัฒนา
 scp -r ~/Desktop/fuel-level backup@<pi-ip>:~/
 ```
 
@@ -127,7 +127,7 @@ sudo systemctl disable fuel-level    # ปิด auto-start
 ## อัปเดตโค้ด
 
 ```bash
-# บน Mac
+# บนเครื่องพัฒนา
 cd ~/Desktop/fuel-level
 scp -r main.py probe_scan.py tls pokcenser backup@<pi-ip>:~/fuel-level/
 # บน Pi
