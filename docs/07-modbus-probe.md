@@ -1,16 +1,32 @@
-# 07 ต่อโพรบ PWL-M200 เข้า Pi โดยตรง (RS-485 Modbus)
+# 07 ต่อโพรบ PWL-M200 เข้า Pi โดยตรง (RS-485 ไม่ใช้ console)
 
-ใช้เมื่อไม่มี console TLS-350 หรือ console CM1 ของ Pokcenser และต้องการให้ Raspberry Pi
-อ่านโพรบ magnetostrictive รุ่น PWL-M200 / PWL-M300 ผ่านตัวแปลง USB-RS485 โดยตรง
+ใช้เมื่อต้องการให้ Raspberry Pi อ่านโพรบ magnetostrictive รุ่น PWL-M200 / PWL-M300 ของ Pokcenser
+ผ่านตัวแปลง USB-RS485 โดยตรง ไม่ผ่าน console CM1
 
 ```
  ถังน้ำมัน                                    Raspberry Pi
 ┌──────────────┐  RS-485 (A/B)  ┌────────────┐  USB  ┌─────────────────────┐
 │ โพรบ PWL-M200 │ ─────────────► │ USB-RS485  │ ────► │ main.py             │
-│ (Modbus addr 1)│               │ converter  │       │ --source modbus     │
+│ (ถัง 3)       │               │ converter  │       │ --source pokcenser  │
 └──────────────┘                └────────────┘       └─────────────────────┘
       ▲ 24 VDC                                          /dev/ttyUSB0
 ```
+
+## ข้อควรรู้ก่อน: เอกสารผู้ผลิตไม่ตรงกับของจริง
+
+เอกสาร "RS485 Protocol-PWL-M200 M300 V2.0" บอกว่าโพรบใช้ Modbus RTU ที่ 9600 baud
+แต่โพรบที่มากับ console CM1 **ไม่ตอบ Modbus เลย** สิ่งที่ดักได้จากสายระหว่าง console กับโพรบคือ
+
+| รายการ | ค่าจริง |
+|--------|---------|
+| ความเร็ว | **4800** baud, 8 data bits, ไม่มี parity, 1 stop bit |
+| คำถาม | 2 ไบต์: `0xE0 + (เลขถัง − 1)` ตามด้วยตัวอักษร `B` เช่น ถัง 3 = `E2 42` |
+| คำตอบ | `STX` `1564.0:87.1:26.9` `ETX` แล้วตามด้วย checksum 1 ไบต์ |
+| ความหมาย | ระดับน้ำมัน mm : ระดับน้ำ mm : อุณหภูมิ °C |
+| checksum | CRC-8 แบบ Dallas/Maxim (poly 0x31 กลับบิต, init 0) คำนวณตั้งแต่ STX ถึง ETX |
+| เวลาตอบ | ประมาณ 0.85 วินาที |
+
+โค้ดโหมด `pokcenser` ทำตามตารางนี้ ส่วนโหมด `modbus` ที่ทำตามเอกสารยังเก็บไว้เผื่อโพรบล็อตอื่น
 
 ## การเดินสาย
 
@@ -24,78 +40,58 @@
 | ดำ | ไฟลบ | ขั้วลบของแหล่งจ่าย **และ** GND ของ converter |
 | เหลือง | shield | กราวด์ |
 
-- converter FT232RL + 75176 สลับทิศทางส่ง/รับให้เอง ไม่ต้องตั้งค่าอะไรใน Pi
-- ต่อโพรบหลายตัวบนสาย A/B เส้นเดียวกันได้ แต่ละตัวต้องมี address ไม่ซ้ำกัน
-- โพรบใช้ 9600 baud, 8 data bits, ไม่มี parity, 1 stop bit ตามค่าโรงงาน
+- ถ้ายังใช้ console จ่ายไฟให้โพรบ ให้ต่อเฉพาะสายแดง/ดำเข้า console ส่วนขาว/น้ำเงินเข้า converter อย่างเดียว
+- **อย่าให้ console อยู่บนสาย A/B เดียวกับ converter** เพราะ console จะถามโพรบทุกวินาทีและคำตอบของโพรบไม่มีเลขถังกำกับ
+  Pi อาจหยิบคำตอบที่โพรบตอบ console มาเป็นของตัวเอง (`--find` จะเห็นถังเงาที่ไม่มีจริง)
+- ไฟเลี้ยง Pi ต้องพอ ถ้า `dmesg` ขึ้น `Undervoltage detected` ตัวแปลง USB จะหลุดเป็นระยะ ให้เปลี่ยนอะแดปเตอร์เป็น 5 V 3 A
 
-## หา address ของโพรบ
+## หาว่าโพรบตอบที่เลขถังไหน
 
-ต่อโพรบ **ทีละตัว** แล้วถามผ่าน broadcast
+หยุด service ก่อน เพราะมันเปิด port ค้างอยู่
 
 ```bash
+sudo systemctl stop fuel-level
 python3 probe_scan.py --find
-# probe address: 7
+# tank 3: answers  fuel 1564.0 mm  water 87.1 mm  temp 26.9 C
+# use: --probe-addrs 3
+python3 probe_scan.py --addrs 3 --loop 5      # อ่านซ้ำทุก 5 วินาที กด Ctrl-C เพื่อหยุด
 ```
 
-ถ้าโพรบเงียบสนิท (0 ไบต์) ให้ลองไล่ baud และ parity ทุกแบบ โพรบจะตอบเฉพาะเมื่อตั้งค่าตรงกัน
+## รัน poller ในโหมด pokcenser
 
 ```bash
-python3 probe_scan.py --scan
-# trying 9600 8N1 ... no (no reply within 1.5s (0 bytes received))
-# trying 19200 8E1 ... answered: address 7
-# use: --baud 19200 --parity E --addrs 7
+python3 main.py --source pokcenser --probe-addrs 3 --dry-run     # ดู JSON ไม่ส่งขึ้น server
+python3 main.py --source pokcenser --probe-addrs 3 --interval 60
 ```
 
-ก่อนสแกน ตรวจให้แน่ใจว่า GND ของ converter ต่อกับขั้วลบของแหล่งจ่าย 24 V (สายดำ) แล้ว
-แม้โพรบจะรับไฟจาก console ก็ต้องต่อกราวด์ร่วมนี้ ไม่งั้นสัญญาณ RS-485 อาจลอยจนอ่านไม่ได้
-
-ถ้าต้องการอ่านค่าดิบดูก่อนใช้งานจริง
-
-```bash
-python3 probe_scan.py --addrs 1,2,3
-# addr   1: fuel   2276.6 mm  water  1320.9 mm  temp 18.19 C  points [18.2 0.0 0.0 0.0 0.0]
-# addr   2: FAILED no reply within 2.0s (0 bytes received)
-python3 probe_scan.py --addrs 1 --loop 5      # อ่านซ้ำทุก 5 วินาที กด Ctrl-C เพื่อหยุด
-```
-
-## รัน poller ในโหมด modbus
-
-```bash
-python3 main.py --source modbus --probe-addrs 1,2,3 --dry-run     # ดู JSON ไม่ส่งขึ้น server
-python3 main.py --source modbus --probe-addrs 1,2,3 --interval 60
-```
-
-หรือตั้งใน `/etc/default/fuel-level` สำหรับ systemd
+สำหรับ systemd แก้ `/etc/default/fuel-level` แล้ว `sudo systemctl restart fuel-level`
 
 ```
-TLS_SOURCE=modbus
-TLS_PROBE_ADDRS=1,2,3
+TLS_SOURCE=pokcenser
+TLS_PROBE_ADDRS=3
+# ลบหรือคอมเมนต์ TLS_BAUD ทิ้ง (ค่า 9600 จะไปทับ 4800 ของโหมดนี้)
 ```
 
-- ลำดับใน `--probe-addrs` คือหมายเลขถัง: address ตัวแรกเป็นถัง 1, ตัวที่สองเป็นถัง 2
+- `--probe-addrs` คือเลขถังตามหน้าจอ console และจะเป็นค่า `tank` ใน payload
 - โหมดนี้มีเฉพาะ report `inventory` (โพรบไม่มี alarm และประวัติการเติม) และเป็นค่า default อยู่แล้ว
-- โพรบตัวไหนไม่ตอบจะถูกข้ามพร้อม log error รอบนั้นจะล้มเหลวก็ต่อเมื่อทุกตัวไม่ตอบ
+- ถังไหนไม่ตอบจะถูกข้ามพร้อม log error รอบนั้นจะล้มเหลวก็ต่อเมื่อทุกถังไม่ตอบ
 
 ## ข้อมูลที่ส่งขึ้น server
-
-โพรบให้แค่ระดับน้ำมัน ระดับน้ำ และอุณหภูมิ ไม่มีตารางเทียบถัง ดังนั้น
 
 | field | ที่มา |
 |-------|-------|
 | `fuel_height`, `water_height` | โพรบ หน่วย mm |
-| `temperature` | โพรบ อุณหภูมิเฉลี่ยของน้ำมัน °C |
-| `fuel_volume`, `tc_volume`, `ullage`, `water_volume` | ส่งเป็น `0` |
-| `function` | `"pwl-m200"` |
+| `temperature` | โพรบ °C |
+| `fuel_volume`, `tc_volume`, `ullage`, `water_volume` | ส่งเป็น `0` (ตารางเทียบถังอยู่ใน console ไม่ใช่ในโพรบ) |
+| `function` | `"pokcenser"` |
 | `timestamp` | `null` (โพรบไม่มีนาฬิกา) |
 
-## โปรโตคอลโดยย่อ
+## โหมด modbus ตามเอกสารผู้ผลิต
 
-จากเอกสาร "RS485 Protocol-PWL-M200 M300-Pokcenser-V2.0"
+ถ้าได้โพรบล็อตที่ตอบ Modbus จริง ใช้ `--source modbus --probe-addrs <slave address>` (9600 8N1, function 04,
+16 register จาก 0x0000, float สลับไบต์ในแต่ละ word) หาโพรบด้วย
 
-- Modbus RTU function 04 อ่าน 16 register จาก 0x0000 ได้ float 32 บิต 8 ค่า
-  (น้ำมัน mm, น้ำ mm, อุณหภูมิเฉลี่ย, อุณหภูมิจุด A ถึง E)
-- float เป็นแบบ IEEE_FLOAT_L คือสลับไบต์ในแต่ละ word เช่น `0E 45 B2 49` = `45 0E 49 B2` = 2276.6
-- โพรบใช้เวลาประมาณ 1 วินาทีก่อนตอบ โค้ดรอ 2 วินาที
-- address 0 (broadcast) อ่าน register 0x20 ได้ address ของโพรบ, function 06 เขียน register 0x20 เพื่อเปลี่ยน address
-
-ตัวอย่างในเอกสาร (address 2) ใช้เป็น test vector ใน `tests/test_modbus_rtu.py`
+```bash
+python3 probe_scan.py --proto modbus --find     # ต่อโพรบตัวเดียว ถาม address ผ่าน broadcast
+python3 probe_scan.py --proto modbus --scan     # ไล่ baud/parity ทุกแบบจนกว่าจะตอบ
+```

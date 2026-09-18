@@ -1,9 +1,14 @@
 """Field tool for PWL-M200 probes on a USB-RS485 converter: find an address, print raw readings.
 
-    python3 probe_scan.py --find                  # one probe on the bus: ask it its address
-    python3 probe_scan.py --scan                  # silent probe: try every baud/parity until it answers
-    python3 probe_scan.py --addrs 1,2,3           # read each probe once and print the values
-    python3 probe_scan.py --addrs 1 --loop 5      # re-read every 5 s (Ctrl-C to stop)
+Console-protocol probes (what a PWD-CM1 ships with, 4800 baud), the default:
+    python3 probe_scan.py --find                  # poll console tank numbers 1..8, list who answers
+    python3 probe_scan.py --addrs 3               # read tank 3 once
+    python3 probe_scan.py --addrs 3 --loop 5      # re-read every 5 s (Ctrl-C to stop)
+
+Modbus RTU probes (the vendor's documented protocol, 9600 baud):
+    python3 probe_scan.py --proto modbus --find   # one probe on the bus: ask it its address
+    python3 probe_scan.py --proto modbus --scan   # silent probe: try every baud/parity until it answers
+    python3 probe_scan.py --proto modbus --addrs 1,2,3
 
 Exit status is the number of probes that failed to answer.
 """
@@ -17,8 +22,12 @@ from typing import Callable, Iterable, Optional
 
 from modbus.probe import decode_reading
 from modbus.rtu import BROADCAST_ADDRESS, DEFAULT_BAUD, DEFAULT_PARITY, PARITIES, ModbusClient, ModbusError
+from pokcenser.probe import DEFAULT_BAUD as POKCENSER_BAUD, PokProbe
 from tls.protocol import ProtocolError
 from tls.transport import find_port
+
+PROTOCOLS = ("pokcenser", "modbus")
+POK_FIND_TANKS = range(1, 9)
 
 ADDRESS_REGISTER = 0x20  # broadcast read returns the probe's own address (protocol doc §3.2)
 DATA_REGISTER_START = 0x0000
@@ -72,23 +81,59 @@ def print_readings(bus, addresses: list[int]) -> int:
     return failures
 
 
+def find_pok_tanks(probe, tanks: Iterable[int] = POK_FIND_TANKS) -> list[int]:
+    """Poll each console tank number; return the ones that answered."""
+    found = []
+    for tank in tanks:
+        try:
+            r = probe.read(tank)
+        except ProtocolError as exc:
+            print(f"tank {tank}: silent ({exc})")
+            continue
+        print(f"tank {tank}: answers  fuel {r.fuel_mm:.1f} mm  water {r.water_mm:.1f} mm  temp {r.temperature_c:.1f} C")
+        found.append(tank)
+    return found
+
+
+def print_pok_readings(probe, tanks: list[int]) -> int:
+    failures = 0
+    for tank in tanks:
+        try:
+            r = probe.read(tank)
+        except ProtocolError as exc:
+            failures += 1
+            print(f"tank {tank:2d}: FAILED {exc}")
+            continue
+        print(f"tank {tank:2d}: fuel {r.fuel_mm:8.1f} mm  water {r.water_mm:7.1f} mm  temp {r.temperature_c:5.1f} C")
+    return failures
+
+
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    p.add_argument("--proto", choices=PROTOCOLS, default="pokcenser", help="probe protocol (default: %(default)s)")
     p.add_argument("--port", help="serial device; default: first USB serial adapter")
-    p.add_argument("--baud", type=int, default=DEFAULT_BAUD)
+    p.add_argument("--baud", type=int, default=None, help="default: 4800 for pokcenser, 9600 for modbus")
     p.add_argument("--parity", choices=tuple(PARITIES), default=DEFAULT_PARITY)
     p.add_argument("--addrs", default="1", help="comma list of probe addresses to read")
-    p.add_argument("--find", action="store_true", help="broadcast-query the single connected probe for its address")
-    p.add_argument("--scan", action="store_true", help="try every baud/parity with the broadcast query (one probe on the bus)")
+    p.add_argument("--find", action="store_true", help="pokcenser: poll tanks 1..8; modbus: broadcast-query the single probe")
+    p.add_argument("--scan", action="store_true", help="modbus: try every baud/parity with the broadcast query")
     p.add_argument("--loop", type=float, default=0, help="seconds between re-reads; 0 = once")
-    return p.parse_args(argv)
+    args = p.parse_args(argv)
+    if args.baud is None:
+        args.baud = POKCENSER_BAUD if args.proto == "pokcenser" else DEFAULT_BAUD
+    if args.proto == "pokcenser" and args.scan:
+        p.error("--scan is for --proto modbus; pokcenser probes are always 4800 8N1")
+    return args
 
 
 def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
     port = args.port or find_port()
-    print(f"port {port}, {args.baud} 8{args.parity}1")
     addresses = [int(a) for a in args.addrs.split(",") if a.strip()]
+    if args.proto == "pokcenser":
+        print(f"port {port}, {args.baud} 8N1, console protocol")
+        return _main_pokcenser(port, args, addresses)
+    print(f"port {port}, {args.baud} 8{args.parity}1, modbus")
     if args.scan:
         found = scan_settings(lambda baud, parity: ModbusClient(port, baud, SCAN_TIMEOUT_S, parity))
         if found is None:
@@ -107,6 +152,19 @@ def main(argv: list[str] | None = None) -> int:
                 return 1
         while True:
             failures = print_readings(bus, addresses)
+            if not args.loop:
+                return failures
+            time.sleep(args.loop)
+
+
+def _main_pokcenser(port: str, args: argparse.Namespace, tanks: list[int]) -> int:
+    with PokProbe(port, args.baud, addresses=tanks) as probe:
+        if args.find:
+            found = find_pok_tanks(probe)
+            print(f"use: --probe-addrs {','.join(map(str, found))}" if found else "no tank answered", file=sys.stderr)
+            return 0 if found else 1
+        while True:
+            failures = print_pok_readings(probe, tanks)
             if not args.loop:
                 return failures
             time.sleep(args.loop)

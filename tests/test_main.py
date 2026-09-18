@@ -6,6 +6,7 @@ import main as main_module
 from main import collect, open_device, parse_args, run_once
 from modbus.rtu import ModbusTimeout
 from modbus.probe import PwlProbe
+from pokcenser.probe import PokProbe
 from tls.api import ApiError
 from tls.protocol import InventoryReport, ProtocolError, StatusReport, TankInventory
 from tls.transport import GaugeTimeout, TlsGauge
@@ -192,7 +193,36 @@ class ParseArgsTest(unittest.TestCase):
             parse_args(["--source", "wifi"])
 
 
+class PokcenserArgsTest(unittest.TestCase):
+    def test_pokcenser_source_defaults_to_4800_baud_and_inventory(self):
+        args = parse_args(["--source", "pokcenser"])
+        self.assertEqual(args.baud, 4800)
+        self.assertEqual(args.reports, ["inventory"])
+
+    def test_other_sources_keep_9600_default(self):
+        self.assertEqual(parse_args([]).baud, 9600)
+        self.assertEqual(parse_args(["--source", "modbus"]).baud, 9600)
+
+    def test_explicit_baud_wins(self):
+        self.assertEqual(parse_args(["--source", "pokcenser", "--baud", "9600"]).baud, 9600)
+
+    def test_pokcenser_rejects_status_report(self):
+        with self.assertRaises(SystemExit):
+            parse_args(["--source", "pokcenser", "--reports", "inventory,status"])
+
+    def test_pokcenser_probe_addrs_limited_to_32_tanks(self):
+        self.assertEqual(parse_args(["--source", "pokcenser", "--probe-addrs", "3"]).probe_addrs, [3])
+        with self.assertRaises(SystemExit):
+            parse_args(["--source", "pokcenser", "--probe-addrs", "33"])
+
+
 class OpenDeviceTest(unittest.TestCase):
+    def test_pokcenser_source_opens_the_ascii_probe(self):
+        device = open_device(make_args("--source", "pokcenser", "--probe-addrs", "3"))
+        self.assertIsInstance(device, PokProbe)
+        self.assertEqual(device._addresses, (3,))
+        self.assertEqual(device._baud, 4800)
+
     def test_tls_source_opens_the_console(self):
         self.assertIsInstance(open_device(make_args()), TlsGauge)
 

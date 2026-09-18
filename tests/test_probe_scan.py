@@ -5,7 +5,9 @@ import unittest
 from contextlib import redirect_stdout
 
 from modbus.rtu import ModbusTimeout, crc16, parse_read_response
-from probe_scan import ADDRESS_REGISTER, find_address, print_readings, scan_settings
+from pokcenser.probe import PokTimeout
+from pokcenser.protocol import ProbeReading as PokReading
+from probe_scan import ADDRESS_REGISTER, find_address, find_pok_tanks, print_pok_readings, print_readings, scan_settings
 
 DOC_DATA = bytes.fromhex("0E 45 B2 49 A5 44 95 1C 91 41 00 80 91 41 00 80") + bytes(16)
 
@@ -83,3 +85,35 @@ class PrintReadingsTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class FakePokProbe:
+    """read(tank) answers from a dict; missing tanks time out."""
+
+    def __init__(self, readings):
+        self._readings = readings
+        self.polled = []
+
+    def read(self, tank):
+        self.polled.append(tank)
+        if tank not in self._readings:
+            raise PokTimeout("no reply within 2.0s (2 bytes received: e2 42)")
+        return self._readings[tank]
+
+
+class PokcenserScanTest(unittest.TestCase):
+    def test_find_polls_tanks_1_to_8_and_lists_the_ones_that_answer(self):
+        probe = FakePokProbe({3: PokReading(1564.0, 87.1, 26.9)})
+        with redirect_stdout(io.StringIO()):
+            self.assertEqual(find_pok_tanks(probe), [3])
+        self.assertEqual(probe.polled, list(range(1, 9)))
+
+    def test_print_pok_readings_reports_values_and_failures(self):
+        probe = FakePokProbe({3: PokReading(1564.0, 87.1, 26.9)})
+        out = io.StringIO()
+        with redirect_stdout(out):
+            failures = print_pok_readings(probe, [3, 4])
+        lines = out.getvalue().splitlines()
+        self.assertIn("1564.0", lines[0])
+        self.assertIn("FAILED", lines[1])
+        self.assertEqual(failures, 1)
