@@ -31,11 +31,11 @@ Base URL บน production: `https://atg.moomou.com` (fuel-api บน Dokploy �
 
 | Route | ความหมาย |
 |---|---|
-| `POST /api/v1/devices` | body `{"site_id","name","lat","lng"}` → `201` device, `409` ถ้า site มีอยู่แล้ว, `422` ถ้าข้อมูลผิด (เช่น lat > 90) |
-| `GET /api/v1/devices?page=&limit=&status=` | รายการเรียงตาม `site_id` กรอง `status=online` หรือ `offline` ได้ |
+| `POST /api/v1/devices` | body `{"site_id","name","lat","lng"}` → `201` device (ถ้า site นั้นเคยถูกลบ จะกู้คืนด้วยข้อมูลใหม่), `409` ถ้า site มี device ที่ยังใช้งานอยู่, `422` ถ้าข้อมูลผิด (เช่น lat > 90) |
+| `GET /api/v1/devices?page=&limit=&status=&include_deleted=` | รายการเรียงตาม `site_id` กรอง `status=online` หรือ `offline` ได้ device ที่ถูกลบ (soft delete) จะแสดงเมื่อ `include_deleted=true` เท่านั้น |
 | `GET /api/v1/devices/{site_id}` | device เดียว `404` ถ้าไม่มี |
-| `PUT /api/v1/devices/{site_id}` | แก้ `name`, `lat`, `lng` บางฟิลด์ |
-| `DELETE /api/v1/devices/{site_id}` | ลบ `409` ถ้ายังมี log อยู่ |
+| `PUT /api/v1/devices/{site_id}` | แก้ `name`, `lat`, `lng`, `is_deleted` บางฟิลด์ (`is_deleted: false` = กู้คืน device ที่ลบไป) |
+| `DELETE /api/v1/devices/{site_id}` | soft delete: แถวและ log ยังอยู่ แต่หายจากรายการและ **ปฏิเสธ log/heartbeat** ของ site นั้น (`422 unknown site_id` / `404`) `404` ถ้าไม่มีหรือลบไปแล้ว |
 | `POST /api/v1/devices/{site_id}/heartbeat` | บอกว่า device ยังทำงาน ไม่ต้องมี body ตอบ device พร้อม `online: true` |
 
 ฟิลด์ของ device:
@@ -47,7 +47,8 @@ Base URL บน production: `https://atg.moomou.com` (fuel-api บน Dokploy �
   "last_heartbeat_at": "2026-09-16T05:00:00.000Z",
   "last_log_at": "2026-09-16T04:59:30.000Z",
   "last_seen_at": "2026-09-16T05:00:00.000Z",
-  "online": true
+  "online": true,
+  "is_deleted": false
 }
 ```
 
