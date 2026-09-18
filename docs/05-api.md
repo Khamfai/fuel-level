@@ -69,11 +69,32 @@ curl -X POST https://atg.moomou.com/api/v1/devices \
 | Route | ความหมาย |
 |---|---|
 | `GET /api/v1/devices/{site_id}/tanks` | `data: { defaults, tanks: [...] }` ถังที่ตั้งค่าไว้ของ site และค่าเริ่มต้นที่ถังอื่นใช้ |
-| `PUT /api/v1/devices/{site_id}/tanks/{tank}` | สร้าง/แก้แถวของถัง: `label`, `capacity_volume` (L), `low_fuel_percent`, `low_fuel_volume` (L), `high_water_height` (mm), `high_water_percent`, `high_temperature` (°C) ทุกฟิลด์ optional ส่ง `null` เพื่อปิดเกณฑ์ `404` ถ้าไม่มี device |
+| `PUT /api/v1/devices/{site_id}/tanks/{tank}` | สร้าง/แก้แถวของถัง: `label`, `capacity_volume` (L), `low_fuel_percent`, `low_fuel_volume` (L), `high_water_height` (mm), `high_water_percent`, `high_temperature` (°C), `diameter_mm`, `length_mm` ทุกฟิลด์ optional ส่ง `null` เพื่อปิดเกณฑ์ `404` ถ้าไม่มี device ถ้าขนาดถังเปลี่ยน server คำนวณ `computed` ของ log ทั้งประวัติใหม่และตอบ `recompute.rows` |
+| `POST /api/v1/devices/{site_id}/tanks/{tank}/recompute` | คำนวณ `computed` ใหม่ให้ log ทุกแถวของ site ที่มีถังนี้ (backfill log ที่เก็บก่อนตั้ง geometry) |
 | `DELETE /api/v1/devices/{site_id}/tanks/{tank}` | ลบแถว กลับไปใช้ค่าเริ่มต้น (`TANK_LOW_FUEL_PERCENT` 20, `TANK_HIGH_WATER_PERCENT` 2 ของ server) |
 
 ถังที่มีแถวของตัวเองจะถูกตัดสินจากแถวนั้นเท่านั้น ถังที่ไม่มีแถวใช้ค่าเริ่มต้นสองข้อ (% น้ำมันต่ำ, % น้ำสูง)
 เกณฑ์ % ต้องมี `ullage` จาก gauge หรือ `capacity_volume` ในแถว alarm ของ gauge เอง (`status.tanks[].alarms`) เป็นคนละอย่างและยังแสดงแยกกัน
+
+## ปริมาตรจากความสูง (Pokcenser probe)
+
+probe ส่งแค่ `fuel_height`, `water_height` (mm จากก้นถัง) และ `temperature` ส่วนปริมาตรเป็น `0` เมื่อผู้ดูแลตั้ง
+`diameter_mm` และ `length_mm` ของถัง (ทรงกระบอกนอน ปลายแบน ขนาดภายใน) server จะคำนวณลิตร **ครั้งเดียวตอน POST**
+แล้วเก็บในคอลัมน์ `computed` ข้าง ๆ `payload` ทุกแถวของ `GET /api/v1/logs` และ `/logs/latest` มี `computed` (หรือ `null` ถ้าไม่มีถังไหนมี geometry)
+
+```json
+"computed": {
+  "geometry_version": "2026-09-18T07:12:00.000Z",
+  "inventory": [
+    {"tank": 3, "source": "geometry", "diameter_mm": 2040, "length_mm": 6120,
+     "capacity_volume": 20003.3, "fuel_volume": 16160.3, "water_volume": 295.7, "ullage": 3547.3, "fill_percent": 82.3}
+  ]
+}
+```
+
+`fuel_volume` เป็นน้ำมันสุทธิ (คอลัมน์ของเหลวลบน้ำที่อยู่ข้างล่าง) `fill_percent` คือของเหลวทั้งหมดต่อความจุ
+`payload` ไม่ถูกแก้เลย: log จาก console (`i201`) ยังมีปริมาตรของ console อยู่ครบ และ `computed` วางคู่กัน
+เกณฑ์เตือนแบบ % และลิตรใช้ `computed` เมื่อมี Pi ไม่ต้องแก้อะไร
 
 ## POST /api/v1/logs
 
