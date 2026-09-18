@@ -3,6 +3,8 @@
 Addresses are console tank numbers (tank 3 is polled with 0xE2 'B'), so the tank
 number in the payload matches what the PWD-CM1 screen shows. Volumes are zero: the
 probe reports heights and temperature only; the strapping table lives in the console.
+A configured tank whose probe does not answer is still reported, with every value 0,
+the same way the console shows 0.0 for a tank without a probe.
 """
 
 from __future__ import annotations
@@ -95,20 +97,28 @@ class PokProbe:
         )
 
     def inventory(self, tank: str = "00") -> InventoryReport:
-        """Poll every configured tank; a silent tank is skipped, all silent raises."""
+        """Poll every configured tank, in configured order.
+
+        A silent or garbled tank is reported with all-zero values (console behaviour);
+        the cycle raises only when every configured tank failed.
+        """
         tanks: list[TankInventory] = []
         failures: list[Exception] = []
         for number in self._addresses:
             try:
                 reading = self.read(number)
             except (PokcenserError, PokTimeout) as exc:
-                log.error("tank %d probe failed, skipping it: %s", number, exc)
+                log.error("tank %d probe failed, reporting zeros: %s", number, exc)
                 failures.append(exc)
+                tanks.append(_to_tank(number, NO_READING))
                 continue
             tanks.append(_to_tank(number, reading))
-        if not tanks:
+        if len(failures) == len(self._addresses):
             raise ProtocolError(f"all {len(self._addresses)} probe(s) failed; last error: {failures[-1]}")
         return InventoryReport(POKCENSER_FUNCTION, None, tuple(tanks))
+
+
+NO_READING = ProbeReading(fuel_mm=0.0, water_mm=0.0, temperature_c=0.0)
 
 
 def _to_tank(number: int, reading: ProbeReading) -> TankInventory:

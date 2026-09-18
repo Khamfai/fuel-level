@@ -66,7 +66,8 @@ python3 main.py --source pokcenser --probe-addrs 3 --interval 60
   `inventory.function` is `"pokcenser"`, `timestamp` is `null` (the probe has no clock).
 - The probe reports `fuel_height`, `water_height` and `temperature` (mm / °C). It has no strapping table,
   so `fuel_volume`, `tc_volume`, `ullage` and `water_volume` are sent as `0`.
-- A tank that does not answer is skipped with an error log; the cycle fails only when every tank fails.
+- A configured tank that does not answer is still sent, with every value `0` (the console shows the same for a
+  tank without a probe), plus an error log. The cycle fails only when every configured tank is silent.
 - Wiring (Pokcenser installation manual): white = RS-485 A, blue = RS-485 B, red = +24 V, black = power
   negative, yellow = shield. The probe needs 24 to 26 VDC; tie the supply negative to the converter's GND.
 - Replies carry no address. **While a console is still wired to the same A/B pair it keeps polling, and

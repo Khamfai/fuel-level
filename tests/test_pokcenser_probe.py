@@ -74,12 +74,22 @@ class InventoryTest(unittest.TestCase):
         self.assertEqual((tank.fuel_height, tank.water_height, tank.temperature), (1564.0, 87.1, 27.0))
         self.assertEqual((tank.fuel_volume, tank.tc_volume, tank.ullage, tank.water_volume), (0.0, 0.0, 0.0, 0.0))
 
-    def test_skips_silent_tank_and_keeps_the_rest(self):
+    def test_silent_tank_is_reported_with_zeros_like_the_console(self):
         p = probe_with([b"", REPLY_T3], tanks=[1, 3])
         with self.assertLogs("pokcenser.probe", level="ERROR") as logs:
             report = p.inventory()
-        self.assertEqual([t.tank for t in report.tanks], [3])
+        self.assertEqual([t.tank for t in report.tanks], [1, 3])
+        silent = report.tanks[0]
+        self.assertEqual((silent.fuel_height, silent.water_height, silent.temperature), (0.0, 0.0, 0.0))
+        self.assertEqual((silent.fuel_volume, silent.water_volume, silent.ullage, silent.tc_volume), (0.0, 0.0, 0.0, 0.0))
+        self.assertAlmostEqual(report.tanks[1].fuel_height, 1564.0)
         self.assertIn("tank 1", logs.output[0])
+
+    def test_tank_order_follows_configuration_even_when_one_is_silent(self):
+        p = probe_with([REPLY_T3, b""], tanks=[3, 4])
+        with self.assertLogs("pokcenser.probe", level="ERROR"):
+            report = p.inventory()
+        self.assertEqual([t.tank for t in report.tanks], [3, 4])
 
     def test_raises_when_every_tank_fails(self):
         p = probe_with([b""], tanks=[1])
