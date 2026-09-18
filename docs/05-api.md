@@ -65,7 +65,7 @@ curl -X POST https://atg.moomou.com/api/v1/devices \
 
 ## Tank alarm thresholds (ตั้งจากหน้าเว็บ ไม่เกี่ยวกับ Pi)
 
-ผู้ดูแลตั้งเกณฑ์เตือนต่อถังได้ที่ `/admin#alarms/<site_id>` หรือผ่าน API; server เป็นคนตัดสินแล้วส่งผลกลับเป็น `alerts` ในทุก log
+ผู้ดูแลตั้งเกณฑ์เตือนต่อถังได้ที่ `/admin#configs/<site_id>` (หน้า Configs) หรือผ่าน API; server เป็นคนตัดสินแล้วส่งผลกลับเป็น `alerts` ในทุก log
 
 | Route | ความหมาย |
 |---|---|
