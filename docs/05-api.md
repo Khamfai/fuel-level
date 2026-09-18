@@ -215,7 +215,7 @@ curl 'https://atg.moomou.com/api/v1/logs?site_id=station-1&limit=10' -H 'x-api-k
 
 แต่ละแถวมี `alerts` เพิ่ม: เกณฑ์ที่ inventory ของ log นั้นข้าม (ตัดสินด้วยการตั้งค่าปัจจุบัน) เช่น
 `[{"tank": 2, "metric": "low_fuel_percent", "level": "warn", "value": 15, "threshold": 20, "message": "Tank 2 fuel is 15%, below 20%"}]`
-ว่าง `[]` เมื่อไม่มีอะไรข้าม
+ว่าง `[]` เมื่อไม่มีอะไรข้าม และ `tank_labels` = `[{"tank": 1, "label": "Diesel"}]` ชื่อถังจากหน้า Configs (เฉพาะถังที่ตั้งชื่อไว้)
 
 ## GET /api/v1/logs/latest
 
