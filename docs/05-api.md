@@ -72,6 +72,11 @@ curl -X POST https://atg.moomou.com/api/v1/devices \
 | `GET /api/v1/devices/{site_id}/tanks` | `data: { defaults, tanks: [...] }` ถังที่ตั้งค่าไว้ของ site และค่าเริ่มต้นที่ถังอื่นใช้ |
 | `PUT /api/v1/devices/{site_id}/tanks/{tank}` | สร้าง/แก้แถวของถัง: `label`, `capacity_volume` (L), `low_fuel_percent`, `low_fuel_volume` (L), `high_water_height` (mm), `high_water_percent`, `high_temperature` (°C) และ `segments` (ถังกายภาพ ดูด้านล่าง; `diameter_mm` + `length_mm` เป็นทางลัดของถังตรงใบเดียว) ทุกฟิลด์ optional ส่ง `null` เพื่อปิดเกณฑ์ `404` ถ้าไม่มี device ถ้า geometry เปลี่ยน server คำนวณ `computed` ของ log ทั้งประวัติใหม่และตอบ `recompute.rows` |
 | `PUT /api/v1/devices/{site_id}/tanks/{tank}/calibration` | แทนที่จุดสอบเทียบทั้งชุด `[{"height_mm", "volume_l", "note"?}]` (array ว่าง = ลบทั้งหมด) แล้วคำนวณประวัติใหม่ |
+| `POST …/tanks/{tank}/datasheets/import` | อัปโหลด CSV ตารางผู้ผลิต (multipart: `file`, `tag`, `height_unit` mm/cm, `activate`, `dry_run`) ได้ **version ใหม่** ทุกครั้ง (version เก่าไม่ถูกแก้) ค่าเริ่มต้นตั้งเป็น active และคำนวณประวัติใหม่ |
+| `GET …/datasheets`, `GET …/datasheets/{v}`, `GET …/datasheets/{v}/csv` | รายการ version, จุดของ version, export CSV |
+| `POST …/datasheets/{v}/activate`, `DELETE …/datasheets/{v}` | สลับ version ที่ใช้ (คำนวณใหม่) / ลบ version ที่ไม่ active (`409` ถ้า active) |
+| `GET/PUT …/tanks/{tank}/deliveries` | บันทึกการเติมจริง `[{"started_at", "ended_at", "volume_l", "note"?}]` |
+| `GET …/tanks/{tank}/accuracy` | เทียบทุกวิธีคำนวณกับการเติมจริง: Δ ลิตรของแต่ละวิธีระหว่าง log ก่อน/หลังเติม, error, สรุป MAE/MAPE/bias และ `best` |
 | `POST /api/v1/devices/{site_id}/tanks/{tank}/recompute` | คำนวณ `computed` ใหม่ให้ log ทุกแถวของ site ที่มีถังนี้ (backfill log ที่เก็บก่อนตั้ง geometry) |
 | `DELETE /api/v1/devices/{site_id}/tanks/{tank}` | ลบแถว กลับไปใช้ค่าเริ่มต้น (`TANK_LOW_FUEL_PERCENT` 20, `TANK_HIGH_WATER_PERCENT` 2 ของ server) |
 
@@ -87,7 +92,12 @@ server จะคำนวณลิตร **ครั้งเดียวตอ�
 ถัง logical หนึ่งหมายเลข (ตามที่ probe รายงาน) อาจเป็นถังกายภาพ 1 ใบหรือหลายใบที่ท่อเชื่อมกัน (ระดับเท่ากัน ปริมาตรบวกกัน) แต่ละใบใน `segments` มี
 `diameter_front_mm`, `diameter_back_mm` (ไม่ใส่ = เท่าด้านหน้า ถ้าต่างกันถือเป็นถังเรียวและ integrate ตามแนวยาว), `length_mm` (เฉพาะส่วนกระบอก),
 `bottom_offset_mm` (ก้นถังใบนี้สูงกว่าจุดศูนย์ของ probe เท่าไร ค่าเริ่มต้น 0) และ `head_type` (`flat`, `ellipsoidal`, `torispherical`)
-จุดสอบเทียบ (`…/calibration`) คือคู่ (ความสูง, ลิตรจริง) จากไม้จุ่มหรือใบส่งน้ำมัน server จะปรับเส้นโค้งจาก geometry ให้ผ่านจุดเหล่านี้ (`source` เป็น `calibrated`)
+จุดสอบเทียบ (`…/calibration`) คือคู่ (ความสูง, ลิตรจริง) จากไม้จุ่มหรือใบส่งน้ำมัน server จะปรับเส้นโค้งจาก geometry ให้ผ่านจุดเหล่านี้
+
+**วิธีคำนวณ (volume methods)** มี 3 แบบ คำนวณพร้อมกันทุก log เก็บใน `computed.inventory[].methods`: `geometry` (โมเดลถังข้างบน), `datasheet_table`
+(ตารางผู้ผลิต version ที่ active แบบ interpolate) และ `datasheet_linear` (เส้นตรง slope·h + intercept ที่ fit จากตาราง หรือกรอกเอง)
+ฟิลด์หลัก (`fuel_volume` ฯลฯ) มาจาก `primary_method` ของถัง (ตั้งผ่าน `PUT …/tanks/{tank}`, ค่าเริ่มต้น `geometry`) และ `source` บอกว่าใช้วิธีไหน
+`capacity_volume`/`ullage`/`fill_percent` เป็น `null` ได้ถ้าวิธีนั้นไม่รู้ความจุ (เส้นตรงที่กรอกเองโดยไม่มีตาราง)
 
 ```json
 "computed": {
