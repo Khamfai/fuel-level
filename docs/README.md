@@ -11,4 +11,4 @@
 | [04-gauge-protocol.md](04-gauge-protocol.md) | โปรโตคอลของ gauge: คำสั่ง 201 / 205 / 20C และความหมายของแต่ละ field |
 | [05-api.md](05-api.md) | REST API: endpoint, รูปแบบ JSON, รหัสตอบกลับ |
 | [06-troubleshooting.md](06-troubleshooting.md) | ข้อผิดพลาดที่พบบ่อยและวิธีแก้ |
-| [07-modbus-probe.md](07-modbus-probe.md) | ต่อโพรบ PWL-M200 เข้า Pi โดยตรงผ่าน RS-485 โดยไม่ใช้ console (โปรโตคอลจริงที่ดักได้จากสาย) |
+| [07-probe-direct.md](07-probe-direct.md) | ต่อโพรบ PWL-M200 เข้า Pi โดยตรงผ่าน RS-485 โดยไม่ใช้ console (โปรโตคอลจริงที่ดักได้จากสาย) |

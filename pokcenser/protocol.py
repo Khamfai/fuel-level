@@ -1,7 +1,7 @@
 """Pokcenser console <-> probe protocol, reverse-engineered from the wire.
 
-The vendor's "RS485 Protocol V2.0" document describes Modbus RTU at 9600 baud, but
-the probes shipped with a PWD-CM1 console speak this instead, at 4800 8N1:
+The vendor's "RS485 Protocol V2.0" document describes Modbus RTU at 9600 baud; the
+probes shipped with a PWD-CM1 console never answered it and speak this instead, at 4800 8N1:
 
     poll   0xE0 + (tank - 1), 'B'                             2 bytes
     reply  STX "<fuel_mm>:<water_mm>:<temp_c>" ETX crc8       e.g. 02 "1564.0:87.1:27.0" 03 50

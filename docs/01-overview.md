@@ -12,7 +12,7 @@
 ```
 
 1. **Gauge (TLS-350)** ตอบคำสั่งผ่าน serial เป็นข้อความ ASCII ตามโปรโตคอลของ Veeder-Root
-   (หรือต่อโพรบ Pokcenser PWL-M200 เข้า Pi โดยตรงผ่าน RS-485 ดู [07-modbus-probe.md](07-modbus-probe.md))
+   (หรือต่อโพรบ Pokcenser PWL-M200 เข้า Pi โดยตรงผ่าน RS-485 ดู [07-probe-direct.md](07-probe-direct.md))
 2. **Raspberry Pi** รัน `main.py` เป็น service ตอน boot ส่งคำสั่งไปถาม gauge ทุก 60 วินาที
    แปลงคำตอบเป็น JSON แล้ว POST ไปที่ server
 3. **Mac** รัน Bun server รับ JSON ตรวจสอบรูปแบบ แล้วเก็บลง SQLite
@@ -32,7 +32,6 @@ fuel-level/
 ├── pokcenser/
 │   ├── protocol.py      โปรโตคอล ASCII ของ console CM1 (4800 baud, CRC-8) ที่ดักได้จากสายจริง
 │   └── probe.py         PokProbe ถามโพรบตามเลขถังของ console แล้วคืน InventoryReport แบบเดียวกับ TLS
-├── modbus/              แบบ Modbus RTU ตามเอกสารผู้ผลิต (โพรบชุดนี้ไม่ได้ใช้ แต่เก็บไว้เผื่อล็อตอื่น)
 ├── probe_scan.py        เครื่องมือหน้างาน: หา address ของโพรบ อ่านค่าดิบ
 ├── tests/               unit tests ฝั่ง Python  →  python3 -m unittest discover -s tests
 ├── deploy/

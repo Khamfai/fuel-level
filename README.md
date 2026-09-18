@@ -5,6 +5,13 @@ magnetostrictive probes over RS-485 (no console needed), and pushes it to the fu
 
 **Full documentation (Thai): [docs/](docs/README.md)** — overview, server setup, Raspberry Pi setup, gauge protocol, API, troubleshooting.
 
+| I want to... | Read |
+|--------------|------|
+| Install on a Raspberry Pi and pick console (RS-232) or probe (RS-485) mode | [docs/03-setup-raspberry-pi.md](docs/03-setup-raspberry-pi.md) |
+| Wire a PWL-M200 probe straight to the Pi, find its tank number | [docs/07-probe-direct.md](docs/07-probe-direct.md) |
+| Understand the TLS-350 commands and fields | [docs/04-gauge-protocol.md](docs/04-gauge-protocol.md) |
+| Fix a probe or gauge that stays silent | [docs/06-troubleshooting.md](docs/06-troubleshooting.md), [docs/07-probe-direct.md](docs/07-probe-direct.md) |
+
 ## Layout
 
 | File | Purpose |
@@ -15,8 +22,7 @@ magnetostrictive probes over RS-485 (no console needed), and pushes it to the fu
 | `tls/api.py` | `ApiClient` (device registration, heartbeat, log upload, Bearer auth) and `build_payload` |
 | `pokcenser/protocol.py` | The console's ASCII poll/reply protocol (4800 baud, CRC-8), reverse-engineered from the wire |
 | `pokcenser/probe.py` | `PokProbe`: polls probes by console tank number -> the same `InventoryReport` the TLS path produces |
-| `modbus/rtu.py`, `modbus/probe.py` | The vendor-documented Modbus RTU variant (`PwlProbe`), for probes that actually speak it |
-| `probe_scan.py` | Field tool: discover which tanks answer, print raw readings, scan Modbus baud/parity |
+| `probe_scan.py` | Field tool: discover which console tank numbers answer, print raw readings |
 | `mock_server.py` | Zero-dependency stand-in for fuel-api that prints what it receives |
 | `tests/` | `python3 -m unittest discover -s tests` |
 
@@ -39,9 +45,9 @@ need to override the source's default (9600; 4800 for `pokcenser`).
 ## Probes without a console (`--source pokcenser`)
 
 Pokcenser PWL-M200 / PWL-M300 probes can be wired straight to a USB-RS485 converter. The probes
-that ship with a PWD-CM1 console do **not** speak the Modbus RTU in the vendor's protocol document;
-they speak the console's own ASCII protocol at **4800 8N1** (captured on the wire, see
-[docs/07-modbus-probe.md](docs/07-modbus-probe.md)):
+that ship with a PWD-CM1 console do **not** answer the Modbus RTU described in the vendor's protocol
+document; they speak the console's own ASCII protocol at **4800 8N1** (captured on the wire, see
+[docs/07-probe-direct.md](docs/07-probe-direct.md)):
 
 ```text
 poll   0xE0 + (tank - 1), 'B'                        e.g. E2 42 for console tank 3
@@ -66,9 +72,6 @@ python3 main.py --source pokcenser --probe-addrs 3 --interval 60
 - Replies carry no address. **While a console is still wired to the same A/B pair it keeps polling, and
   its probes' answers can be mistaken for answers to ours** (`--find` then shows phantom tanks). For the
   final install leave the console on power only, or remove it, so the Pi is the only master.
-
-`--source modbus` selects the vendor-documented Modbus RTU variant (9600 8N1, function 04, 16 input
-registers). Use `python3 probe_scan.py --proto modbus --find` / `--scan` to probe for it.
 
 ## What one poll cycle does
 
@@ -131,6 +134,9 @@ Units are whatever the gauge is configured for (gallons/inches/°F or litres/mm/
 
 ## Run at boot on the Raspberry Pi
 
+Step-by-step guide (Thai), including how to choose between console and probe mode and how to
+switch an existing install: **[docs/03-setup-raspberry-pi.md](docs/03-setup-raspberry-pi.md)**.
+
 ```bash
 cd ~/fuel-level
 sudo bash deploy/install.sh
@@ -140,3 +146,15 @@ This installs a systemd service (`deploy/fuel-level.service`) that starts the po
 after the network is up, polls every 60 s, and restarts it if it crashes.
 Change settings in `/etc/default/fuel-level` (see `deploy/fuel-level.env.example`), then
 `sudo systemctl restart fuel-level`. Logs: `journalctl -u fuel-level -f`.
+
+Minimal config per mode:
+
+```bash
+# console TLS-350 over RS-232 (default): nothing to add
+# PWL-M200 probe over RS-485, console tank 3:
+TLS_SOURCE=pokcenser
+TLS_PROBE_ADDRS=3
+```
+
+The service holds the serial port, so `sudo systemctl stop fuel-level` before running
+`probe_scan.py` or a manual `main.py` by hand.

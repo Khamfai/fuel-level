@@ -26,7 +26,7 @@
 | checksum | CRC-8 แบบ Dallas/Maxim (poly 0x31 กลับบิต, init 0) คำนวณตั้งแต่ STX ถึง ETX |
 | เวลาตอบ | ประมาณ 0.85 วินาที |
 
-โค้ดโหมด `pokcenser` ทำตามตารางนี้ ส่วนโหมด `modbus` ที่ทำตามเอกสารยังเก็บไว้เผื่อโพรบล็อตอื่น
+โค้ดโหมด `pokcenser` ทำตามตารางนี้ ไม่มีโค้ด Modbus ในโปรเจกต์ เพราะโพรบไม่เคยตอบ
 
 ## การเดินสาย
 
@@ -85,13 +85,3 @@ TLS_PROBE_ADDRS=3
 | `fuel_volume`, `tc_volume`, `ullage`, `water_volume` | ส่งเป็น `0` (ตารางเทียบถังอยู่ใน console ไม่ใช่ในโพรบ) |
 | `function` | `"pokcenser"` |
 | `timestamp` | `null` (โพรบไม่มีนาฬิกา) |
-
-## โหมด modbus ตามเอกสารผู้ผลิต
-
-ถ้าได้โพรบล็อตที่ตอบ Modbus จริง ใช้ `--source modbus --probe-addrs <slave address>` (9600 8N1, function 04,
-16 register จาก 0x0000, float สลับไบต์ในแต่ละ word) หาโพรบด้วย
-
-```bash
-python3 probe_scan.py --proto modbus --find     # ต่อโพรบตัวเดียว ถาม address ผ่าน broadcast
-python3 probe_scan.py --proto modbus --scan     # ไล่ baud/parity ทุกแบบจนกว่าจะตอบ
-```

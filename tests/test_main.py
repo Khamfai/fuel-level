@@ -4,9 +4,7 @@ from unittest.mock import patch
 
 import main as main_module
 from main import collect, open_device, parse_args, run_once
-from modbus.rtu import ModbusTimeout
-from modbus.probe import PwlProbe
-from pokcenser.probe import PokProbe
+from pokcenser.probe import PokProbe, PokTimeout
 from tls.api import ApiError
 from tls.protocol import InventoryReport, ProtocolError, StatusReport, TankInventory
 from tls.transport import GaugeTimeout, TlsGauge
@@ -86,7 +84,7 @@ class CollectTest(unittest.TestCase):
 
 
 class InventoryOnlyGauge:
-    """Like PwlProbe: has .inventory() and nothing else."""
+    """Like PokProbe: has .inventory() and nothing else."""
 
     def inventory(self, tank):
         return INVENTORY
@@ -106,7 +104,7 @@ class BrokenProbe:
         return False
 
     def inventory(self, tank):
-        raise ModbusTimeout("no reply within 2.0s")
+        raise PokTimeout("no reply within 2.0s")
 
 
 class CollectWithProbeTest(unittest.TestCase):
@@ -116,10 +114,10 @@ class CollectWithProbeTest(unittest.TestCase):
 
 
 class MainLoopTest(unittest.TestCase):
-    def test_a_raw_modbus_error_is_logged_not_raised(self):
+    def test_a_silent_probe_is_logged_not_raised(self):
         with patch.object(main_module, "open_device", lambda args: BrokenProbe()), \
                 self.assertLogs("fuel-level", level="ERROR") as logs:
-            code = main_module.main(["--source", "modbus", "--port", "/dev/null", "--dry-run"])
+            code = main_module.main(["--source", "pokcenser", "--port", "/dev/null", "--dry-run"])
         self.assertEqual(code, 1)
         self.assertIn("no reply within 2.0s", logs.output[-1])
 
@@ -173,20 +171,14 @@ class ParseArgsTest(unittest.TestCase):
         self.assertEqual(args.source, "tls")
         self.assertEqual(args.probe_addrs, [1])
 
-    def test_probe_addrs_is_a_list_of_modbus_addresses(self):
-        args = parse_args(["--source", "modbus", "--probe-addrs", "1, 2,3"])
+    def test_probe_addrs_is_a_list_of_tank_numbers(self):
+        args = parse_args(["--source", "pokcenser", "--probe-addrs", "1, 2,3"])
         self.assertEqual(args.probe_addrs, [1, 2, 3])
 
-    def test_probe_addrs_must_be_1_to_255(self):
-        for bad in ("0", "256", "x"):
+    def test_probe_addrs_must_be_1_to_32(self):
+        for bad in ("0", "33", "x"):
             with self.assertRaises(SystemExit):
-                parse_args(["--source", "modbus", "--probe-addrs", bad])
-
-    def test_modbus_source_only_supports_inventory(self):
-        with self.assertRaises(SystemExit):
-            parse_args(["--source", "modbus", "--reports", "inventory,status"])
-        args = parse_args(["--source", "modbus"])
-        self.assertEqual(args.reports, ["inventory"])
+                parse_args(["--source", "pokcenser", "--probe-addrs", bad])
 
     def test_unknown_source_is_rejected(self):
         with self.assertRaises(SystemExit):
@@ -199,9 +191,8 @@ class PokcenserArgsTest(unittest.TestCase):
         self.assertEqual(args.baud, 4800)
         self.assertEqual(args.reports, ["inventory"])
 
-    def test_other_sources_keep_9600_default(self):
+    def test_tls_keeps_9600_default(self):
         self.assertEqual(parse_args([]).baud, 9600)
-        self.assertEqual(parse_args(["--source", "modbus"]).baud, 9600)
 
     def test_explicit_baud_wins(self):
         self.assertEqual(parse_args(["--source", "pokcenser", "--baud", "9600"]).baud, 9600)
@@ -209,11 +200,6 @@ class PokcenserArgsTest(unittest.TestCase):
     def test_pokcenser_rejects_status_report(self):
         with self.assertRaises(SystemExit):
             parse_args(["--source", "pokcenser", "--reports", "inventory,status"])
-
-    def test_pokcenser_probe_addrs_limited_to_32_tanks(self):
-        self.assertEqual(parse_args(["--source", "pokcenser", "--probe-addrs", "3"]).probe_addrs, [3])
-        with self.assertRaises(SystemExit):
-            parse_args(["--source", "pokcenser", "--probe-addrs", "33"])
 
 
 class OpenDeviceTest(unittest.TestCase):
@@ -225,11 +211,6 @@ class OpenDeviceTest(unittest.TestCase):
 
     def test_tls_source_opens_the_console(self):
         self.assertIsInstance(open_device(make_args()), TlsGauge)
-
-    def test_modbus_source_opens_the_probe_with_configured_addresses(self):
-        device = open_device(make_args("--source", "modbus", "--probe-addrs", "3,4"))
-        self.assertIsInstance(device, PwlProbe)
-        self.assertEqual(device._addresses, (3, 4))
 
 
 if __name__ == "__main__":
