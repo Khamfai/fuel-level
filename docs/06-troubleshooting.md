@@ -147,7 +147,7 @@ python3 main.py --dry-run -v 2>&1 | grep raw
 
 ### `HTTP 422 ... unknown site_id`
 
-server ยังไม่มี device ของ `TLS_SITE_ID` นี้ ลงทะเบียนครั้งเดียวด้วย
+server ยังไม่มี device ของ `TLS_SITE_ID` นี้ **หรือ device นั้นถูกลบไปแล้ว** (soft delete: ที่หน้า Manage ติ๊ก "Show deleted sites" แล้วกด Restore หรือลงทะเบียนซ้ำด้วยคำสั่งข้างล่าง server จะกู้คืนให้) ลงทะเบียนครั้งเดียวด้วย
 
 ```bash
 python3 main.py --device-name "Station 1" --lat 13.7563 --lng 100.5018

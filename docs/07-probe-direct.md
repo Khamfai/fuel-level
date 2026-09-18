@@ -82,6 +82,6 @@ TLS_PROBE_ADDRS=3
 |-------|-------|
 | `fuel_height`, `water_height` | โพรบ หน่วย mm |
 | `temperature` | โพรบ °C |
-| `fuel_volume`, `tc_volume`, `ullage`, `water_volume` | ส่งเป็น `0` (ตารางเทียบถังอยู่ใน console ไม่ใช่ในโพรบ) |
+| `fuel_volume`, `tc_volume`, `ullage`, `water_volume` | ส่งเป็น `0` (ตารางเทียบถังอยู่ใน console ไม่ใช่ในโพรบ) server คำนวณลิตรจากความสูงให้เองเมื่อตั้งเส้นผ่านศูนย์กลางและความยาวถังไว้ที่หน้า `/admin#configs/<site_id>` แล้วเก็บไว้ใน `computed` ของแต่ละ log (ดู 05-api.md) |
 | `function` | `"pokcenser"` |
 | `timestamp` | `null` (โพรบไม่มีนาฬิกา) |
