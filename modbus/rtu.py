@@ -27,6 +27,8 @@ RESPONSE_HEADER_LEN = 3  # addr, function, byte count
 EXCEPTION_FRAME_LEN = 5  # addr, function|0x80, code, crc
 
 DEFAULT_BAUD = 9600
+DEFAULT_PARITY = "N"
+PARITIES = {"N": serial.PARITY_NONE, "E": serial.PARITY_EVEN, "O": serial.PARITY_ODD}
 # The PWL-M200 needs ~1 s to acquire a reading before it answers.
 DEFAULT_RESPONSE_TIMEOUT_S = 2.0
 SERIAL_READ_TIMEOUT_S = 0.1
@@ -104,9 +106,13 @@ class ModbusClient:
         port: str,
         baud: int = DEFAULT_BAUD,
         response_timeout: float = DEFAULT_RESPONSE_TIMEOUT_S,
+        parity: str = DEFAULT_PARITY,
     ):
+        if parity not in PARITIES:
+            raise ValueError(f"parity must be one of {', '.join(PARITIES)}, got {parity!r}")
         self._port = port
         self._baud = baud
+        self._parity = parity
         self._response_timeout = response_timeout
         self._ser: serial.Serial | None = None
 
@@ -115,7 +121,7 @@ class ModbusClient:
             self._port,
             self._baud,
             bytesize=serial.EIGHTBITS,
-            parity=serial.PARITY_NONE,
+            parity=PARITIES[self._parity],
             stopbits=serial.STOPBITS_ONE,
             timeout=SERIAL_READ_TIMEOUT_S,
         )

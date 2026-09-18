@@ -41,6 +41,7 @@ in between. Each probe is one Modbus RTU slave (9600 8N1) and measures one tank.
 
 ```bash
 python3 probe_scan.py --find                              # single probe on the bus: prints its address
+python3 probe_scan.py --scan                              # probe silent? try every baud/parity until it answers
 python3 probe_scan.py --addrs 1,2,3                       # raw fuel/water/temperature per probe
 python3 main.py --source modbus --probe-addrs 1,2,3 --dry-run
 python3 main.py --source modbus --probe-addrs 1,2,3 --interval 60

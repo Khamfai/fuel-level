@@ -2,6 +2,7 @@
 "RS485 Protocol-PWL-M200 M300-Pokcenser-V2.0" (probe address 2, read 16 input registers)."""
 
 import unittest
+from unittest.mock import patch
 
 from modbus import rtu
 from modbus.rtu import (
@@ -97,6 +98,20 @@ def client_with(replies):
     c = ModbusClient("fake", response_timeout=0.05)
     c._ser = FakeSerial(replies)
     return c
+
+
+class SerialSettingsTest(unittest.TestCase):
+    def test_opens_port_with_requested_baud_and_parity(self):
+        with patch.object(rtu.serial, "Serial") as serial_cls:
+            with ModbusClient("fake", baud=19200, parity="E"):
+                pass
+        kwargs = serial_cls.call_args.kwargs
+        self.assertEqual(serial_cls.call_args.args[:2], ("fake", 19200))
+        self.assertEqual(kwargs["parity"], "E")
+
+    def test_rejects_unknown_parity(self):
+        with self.assertRaises(ValueError):
+            ModbusClient("fake", parity="X")
 
 
 class ModbusClientTest(unittest.TestCase):

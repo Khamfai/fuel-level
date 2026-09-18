@@ -5,7 +5,7 @@ import unittest
 from contextlib import redirect_stdout
 
 from modbus.rtu import ModbusTimeout, crc16, parse_read_response
-from probe_scan import ADDRESS_REGISTER, find_address, print_readings
+from probe_scan import ADDRESS_REGISTER, find_address, print_readings, scan_settings
 
 DOC_DATA = bytes.fromhex("0E 45 B2 49 A5 44 95 1C 91 41 00 80 91 41 00 80") + bytes(16)
 
@@ -22,6 +22,12 @@ class FakeBus:
             raise reply
         return reply
 
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        return False
+
 
 class FindAddressTest(unittest.TestCase):
     def test_broadcast_reply_from_protocol_doc_parses_to_address_7(self):
@@ -34,6 +40,33 @@ class FindAddressTest(unittest.TestCase):
         bus = FakeBus({(0, ADDRESS_REGISTER): b"\x00\x07"})
         self.assertEqual(find_address(bus), 7)
         self.assertEqual(bus.calls, [(0, 0x20, 1)])
+
+
+class FakeOpener:
+    """open(baud, parity) -> context-managed bus; only `answers` settings reply."""
+
+    def __init__(self, answers):
+        self._answers = answers
+        self.tried = []
+
+    def __call__(self, baud, parity):
+        self.tried.append((baud, parity))
+        reply = b"\x00\x07" if (baud, parity) in self._answers else ModbusTimeout("silent")
+        return FakeBus({(0, ADDRESS_REGISTER): reply})
+
+
+class ScanSettingsTest(unittest.TestCase):
+    def test_returns_first_settings_that_answer(self):
+        opener = FakeOpener({(19200, "E")})
+        with redirect_stdout(io.StringIO()):
+            found = scan_settings(opener, bauds=[9600, 19200], parities=["N", "E"])
+        self.assertEqual(found, (19200, "E", 7))
+        self.assertEqual(opener.tried, [(9600, "N"), (9600, "E"), (19200, "N"), (19200, "E")])
+
+    def test_returns_none_when_nothing_answers(self):
+        opener = FakeOpener(set())
+        with redirect_stdout(io.StringIO()):
+            self.assertIsNone(scan_settings(opener, bauds=[9600], parities=["N"]))
 
 
 class PrintReadingsTest(unittest.TestCase):

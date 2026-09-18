@@ -37,6 +37,18 @@ python3 probe_scan.py --find
 # probe address: 7
 ```
 
+ถ้าโพรบเงียบสนิท (0 ไบต์) ให้ลองไล่ baud และ parity ทุกแบบ โพรบจะตอบเฉพาะเมื่อตั้งค่าตรงกัน
+
+```bash
+python3 probe_scan.py --scan
+# trying 9600 8N1 ... no (no reply within 1.5s (0 bytes received))
+# trying 19200 8E1 ... answered: address 7
+# use: --baud 19200 --parity E --addrs 7
+```
+
+ก่อนสแกน ตรวจให้แน่ใจว่า GND ของ converter ต่อกับขั้วลบของแหล่งจ่าย 24 V (สายดำ) แล้ว
+แม้โพรบจะรับไฟจาก console ก็ต้องต่อกราวด์ร่วมนี้ ไม่งั้นสัญญาณ RS-485 อาจลอยจนอ่านไม่ได้
+
 ถ้าต้องการอ่านค่าดิบดูก่อนใช้งานจริง
 
 ```bash
