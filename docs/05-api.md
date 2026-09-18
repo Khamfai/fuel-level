@@ -70,7 +70,8 @@ curl -X POST https://atg.moomou.com/api/v1/devices \
 | Route | ความหมาย |
 |---|---|
 | `GET /api/v1/devices/{site_id}/tanks` | `data: { defaults, tanks: [...] }` ถังที่ตั้งค่าไว้ของ site และค่าเริ่มต้นที่ถังอื่นใช้ |
-| `PUT /api/v1/devices/{site_id}/tanks/{tank}` | สร้าง/แก้แถวของถัง: `label`, `capacity_volume` (L), `low_fuel_percent`, `low_fuel_volume` (L), `high_water_height` (mm), `high_water_percent`, `high_temperature` (°C), `diameter_mm`, `length_mm` ทุกฟิลด์ optional ส่ง `null` เพื่อปิดเกณฑ์ `404` ถ้าไม่มี device ถ้าขนาดถังเปลี่ยน server คำนวณ `computed` ของ log ทั้งประวัติใหม่และตอบ `recompute.rows` |
+| `PUT /api/v1/devices/{site_id}/tanks/{tank}` | สร้าง/แก้แถวของถัง: `label`, `capacity_volume` (L), `low_fuel_percent`, `low_fuel_volume` (L), `high_water_height` (mm), `high_water_percent`, `high_temperature` (°C) และ `segments` (ถังกายภาพ ดูด้านล่าง; `diameter_mm` + `length_mm` เป็นทางลัดของถังตรงใบเดียว) ทุกฟิลด์ optional ส่ง `null` เพื่อปิดเกณฑ์ `404` ถ้าไม่มี device ถ้า geometry เปลี่ยน server คำนวณ `computed` ของ log ทั้งประวัติใหม่และตอบ `recompute.rows` |
+| `PUT /api/v1/devices/{site_id}/tanks/{tank}/calibration` | แทนที่จุดสอบเทียบทั้งชุด `[{"height_mm", "volume_l", "note"?}]` (array ว่าง = ลบทั้งหมด) แล้วคำนวณประวัติใหม่ |
 | `POST /api/v1/devices/{site_id}/tanks/{tank}/recompute` | คำนวณ `computed` ใหม่ให้ log ทุกแถวของ site ที่มีถังนี้ (backfill log ที่เก็บก่อนตั้ง geometry) |
 | `DELETE /api/v1/devices/{site_id}/tanks/{tank}` | ลบแถว กลับไปใช้ค่าเริ่มต้น (`TANK_LOW_FUEL_PERCENT` 20, `TANK_HIGH_WATER_PERCENT` 2 ของ server) |
 
@@ -79,15 +80,20 @@ curl -X POST https://atg.moomou.com/api/v1/devices \
 
 ## ปริมาตรจากความสูง (Pokcenser probe)
 
-probe ส่งแค่ `fuel_height`, `water_height` (mm จากก้นถัง) และ `temperature` ส่วนปริมาตรเป็น `0` เมื่อผู้ดูแลตั้ง
-`diameter_mm` และ `length_mm` ของถัง (ทรงกระบอกนอน ปลายแบน ขนาดภายใน) server จะคำนวณลิตร **ครั้งเดียวตอน POST**
-แล้วเก็บในคอลัมน์ `computed` ข้าง ๆ `payload` ทุกแถวของ `GET /api/v1/logs` และ `/logs/latest` มี `computed` (หรือ `null` ถ้าไม่มีถังไหนมี geometry)
+probe ส่งแค่ `fuel_height`, `water_height` (mm จากจุดศูนย์ของ probe) และ `temperature` ส่วนปริมาตรเป็น `0` เมื่อผู้ดูแลตั้ง geometry ของถัง
+server จะคำนวณลิตร **ครั้งเดียวตอน POST** แล้วเก็บในคอลัมน์ `computed` ข้าง ๆ `payload` ทุกแถวของ `GET /api/v1/logs` และ `/logs/latest` มี `computed`
+(หรือ `null` ถ้าไม่มีถังไหนมี geometry)
+
+ถัง logical หนึ่งหมายเลข (ตามที่ probe รายงาน) อาจเป็นถังกายภาพ 1 ใบหรือหลายใบที่ท่อเชื่อมกัน (ระดับเท่ากัน ปริมาตรบวกกัน) แต่ละใบใน `segments` มี
+`diameter_front_mm`, `diameter_back_mm` (ไม่ใส่ = เท่าด้านหน้า ถ้าต่างกันถือเป็นถังเรียวและ integrate ตามแนวยาว), `length_mm` (เฉพาะส่วนกระบอก),
+`bottom_offset_mm` (ก้นถังใบนี้สูงกว่าจุดศูนย์ของ probe เท่าไร ค่าเริ่มต้น 0) และ `head_type` (`flat`, `ellipsoidal`, `torispherical`)
+จุดสอบเทียบ (`…/calibration`) คือคู่ (ความสูง, ลิตรจริง) จากไม้จุ่มหรือใบส่งน้ำมัน server จะปรับเส้นโค้งจาก geometry ให้ผ่านจุดเหล่านี้ (`source` เป็น `calibrated`)
 
 ```json
 "computed": {
   "geometry_version": "2026-09-18T07:12:00.000Z",
   "inventory": [
-    {"tank": 3, "source": "geometry", "diameter_mm": 2040, "length_mm": 6120,
+    {"tank": 3, "source": "geometry", "segments": 1, "calibration_points": 0,
      "capacity_volume": 20003.3, "fuel_volume": 16160.3, "water_volume": 295.7, "ullage": 3547.3, "fill_percent": 82.3}
   ]
 }
